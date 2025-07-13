@@ -1,9 +1,12 @@
 # BSPC - Binary Sparse Container
 
+> [!WARNING]
+> This is a work in progress. The API may change before the first stable release.
+
 <!-- [![Crates.io](https://img.shields.io/crates/v/bspc.svg)](https://crates.io/crates/bspc)
 [![Documentation](https://docs.rs/bspc/badge.svg)](https://docs.rs/bspc/) -->
 
-**Query terabyte sparse matrices instantly. Zero-copy. Memory-mapped.**
+**Query massive sparse matrices instantly. Zero-copy. Memory-mapped.**
 
 ```
 ┌─────────────────────────────┐
@@ -44,4 +47,9 @@ let value = mmap.get_element(row, col)?;  // Microseconds
 bspc = "0.1"
 ```
 
-**Result:** Query 100GB matrices on a laptop. Memory usage stays constant.
+**Result:** Query huge matrices on a laptop. Memory usage stays constant.
+
+
+### Quickstart Guide
+
+For a quickstart guide, see [quickstart.md](quickstart.md).
