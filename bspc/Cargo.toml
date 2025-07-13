@@ -1,0 +1,32 @@
+[package]
+name = "bspc"
+version = "0.1.0"
+edition = "2021"
+description = "Binary sparse matrix format with memory mapping and I/O support"
+license = "MIT OR Apache-2.0"
+
+[features]
+default = ["serde", "mmap"]
+serde = ["dep:serde", "dep:serde_json", "bspc-core/serde"]
+mmap = ["dep:memmap2"]
+
+[dependencies]
+bspc-core = { path = "../bspc-core", features = ["alloc"] }
+binsparse-rs = { workspace = true }
+memmap2 = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+bytemuck = { workspace = true }
+hashbrown = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+rand = { workspace = true }
+
+[[bench]]
+name = "bspc_benchmarks"
+harness = false
+
+[[bench]]
+name = "large_file_benchmarks"
+harness = false

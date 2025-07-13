@@ -1,0 +1,18 @@
+[package]
+name = "bspc-core"
+version = "0.1.0"
+edition = "2021"
+description = "Core binary sparse matrix format definitions"
+license = "MIT"
+
+[features]
+default = []
+alloc = []
+serde = ["dep:serde"]
+
+[dependencies]
+serde = { workspace = true, optional = true, default-features = false }
+bytemuck = { workspace = true, default-features = false }
+hashbrown = { workspace = true, optional = true }
+
+[dev-dependencies]
