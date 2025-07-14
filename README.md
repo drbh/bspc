@@ -53,3 +53,7 @@ bspc = "0.1"
 ### Quickstart Guide
 
 For a quickstart guide, see [quickstart.md](quickstart.md).
+
+### Built on Standards
+
+BSPC implements the [Binary Sparse Format Specification](https://graphblas.org/binsparse-specification/) through [binsparse-rs](https://github.com/drbh/binsparse-rs), adding memory-mapped access and bloom filter optimizations for instant querying.

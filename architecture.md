@@ -1,5 +1,7 @@
 # BSPC Architecture
 
+BSPC builds on [binsparse-rs](https://github.com/drbh/binsparse-rs), implementing the [Binary Sparse Format Specification](https://graphblas.org/binsparse-specification/) with additional optimizations for memory-mapped access and bloom filter indexing.
+
 ## File Format
 
 ```
@@ -36,10 +38,12 @@ struct BspcHeader {
 - Typical size: ~10 bytes per chunk
 
 ### Sparse Data
-Standard COO format:
+Standard COO (Coordinate) format per Binary Sparse Format Specification:
 - `values[]`: Non-zero matrix values
 - `row_indices[]`: Row coordinates  
 - `col_indices[]`: Column coordinates
+
+The underlying sparse data follows the binsparse standard, wrapped with BSPC's memory-mapped interface for efficient access.
 
 ## Core Components
 
