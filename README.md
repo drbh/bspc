@@ -18,12 +18,12 @@
 
 Sparse matrices are everywhere in ML, but existing formats are slow for queries:
 
-| Format | Safe | Zero-copy | Bloom filters | Query speed |
-|--------|------|-----------|---------------|-------------|
-| pickle | ✗    | ✗         | ✗             | Slow        |
-| HDF5   | ✓    | ✗         | ✗             | Slow        |
-| NPZ    | ✓    | ✗         | ✗             | Slow        |
-| **BSPC** | **✓** | **✓** | **✓**     | **Fast**    |
+| Format   | Zero-copy | Bloom filters | Query speed |
+| -------- | --------- | ------------- | ----------- |
+| pickle   | ✗         | ✗             | Slow        |
+| HDF5     | ✗         | ✗             | Slow        |
+| NPZ      | ✗         | ✗             | Slow        |
+| **BSPC** | **✓**     | **✓**         | **Fast**    |
 
 **The secret:** Bloom filters skip 90%+ of disk reads.
 
