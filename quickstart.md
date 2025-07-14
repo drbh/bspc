@@ -2,6 +2,60 @@
 
 `bspc` can be used to handled large sparse matrices efficiently. Below is a quickstart guide to get you started with writing and reading sparse matrices using the BSPC format.
 
+## Over the network
+
+One of the use cases of BSPC is to query sparse matrices over the network. The `http_cli` example allows you to query a BSPC file hosted on a remote server.
+
+Since the layout of the file is well known, you can query specific rows or ranges of columns without downloading the entire file using the header information and range requests.
+
+```bash
+cargo run --example http_cli -- query https://pub-880fbbaba27845f6bc9728b552fb15b3.r2.dev/example_matrix.bspc --row 10 --col-range 1330:1337
+```
+
+```txt
+Row 10 elements in column range 1330:1337:
+  (10, 1330) = Float64(143.0)
+  (10, 1331) = Float64(143.1)
+  (10, 1332) = Float64(143.20000000000002)
+  (10, 1333) = Float64(143.3)
+  (10, 1334) = Float64(143.4)
+  (10, 1335) = Float64(143.5)
+  (10, 1336) = Float64(143.6)
+Query completed in 4.51s
+```
+
+You can also query a specific row and column:
+
+```bash
+cargo run --example http_cli -- query https://pub-880fbbaba27845f6bc9728b552fb15b3.r2.dev/example_matrix.bspc --row-range 0:50
+```
+
+```txt
+Elements in row range 0:50:
+  (10, 0) = Float64(10.0)
+  (10, 1) = Float64(10.1)
+  (10, 2) = Float64(10.2)
+  (10, 3) = Float64(10.3)
+  (10, 4) = Float64(10.4)
+  (10, 5) = Float64(10.5)
+  (10, 6) = Float64(10.6)
+  (10, 7) = Float64(10.7)
+  (10, 8) = Float64(10.8)
+   ...
+  (10, 999992) = Float64(100009.20000000001)
+  (10, 999993) = Float64(100009.3)
+  (10, 999994) = Float64(100009.40000000001)
+  (10, 999995) = Float64(100009.5)
+  (10, 999996) = Float64(100009.6)
+  (10, 999997) = Float64(100009.70000000001)
+  (10, 999998) = Float64(100009.8)
+  (10, 999999) = Float64(100009.90000000001)
+Query completed in 4.96s
+```
+
+
+
+## Over the file system
 
 ### Writing a Sparse Matrix
 

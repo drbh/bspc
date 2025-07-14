@@ -1,32 +1,28 @@
 [package]
+description = "Binary sparse matrix format with memory mapping and I/O support"
+edition = "2021"
+license = "MIT"
 name = "bspc"
 version = "0.1.0"
-edition = "2021"
-description = "Binary sparse matrix format with memory mapping and I/O support"
-license = "MIT OR Apache-2.0"
 
 [features]
-default = ["serde", "mmap"]
-serde = ["dep:serde", "dep:serde_json", "bspc-core/serde"]
+default = ["serde", "mmap", "http"]
+http = ["dep:reqwest", "dep:tokio", "dep:clap"]
 mmap = ["dep:memmap2"]
+serde = ["dep:serde", "dep:serde_json", "bspc-core/serde"]
 
 [dependencies]
-bspc-core = { path = "../bspc-core", features = ["alloc"] }
-binsparse-rs = { workspace = true }
-memmap2 = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
-bytemuck = { workspace = true }
-hashbrown = { workspace = true }
+binsparse-rs = {workspace = true}
+bspc-core = {path = "../bspc-core", features = ["alloc"]}
+bytemuck = {workspace = true}
+clap = {version = "4.0", features = ["derive"], optional = true}
+hashbrown = {workspace = true}
+memmap2 = {workspace = true, optional = true}
+reqwest = {version = "0.11", features = ["stream"], optional = true}
+serde = {workspace = true, optional = true}
+serde_json = {workspace = true, optional = true}
+tokio = {version = "1.0", features = ["full"], optional = true}
 
 [dev-dependencies]
-criterion = { workspace = true }
-rand = { workspace = true }
-
-# [[bench]]
-# name = "bspc_benchmarks"
-# harness = false
-
-# [[bench]]
-# name = "large_file_benchmarks"
-# harness = false
+criterion = {workspace = true}
+rand = {workspace = true}
