@@ -17,24 +17,25 @@ use std::{
 /// Safely validate array size for u32 indices with overflow protection
 fn validate_u32_array_size(byte_len: usize) -> Result<usize> {
     const U32_SIZE: usize = 4;
-    
+
     // Check alignment
     if byte_len % U32_SIZE != 0 {
         return Err(Error::InvalidState("Array size not aligned to u32 size"));
     }
-    
+
     // Use checked division
     let count = byte_len / U32_SIZE;
-    
+
     // Check if array would be too large for safe indexing
     if count > isize::MAX as usize {
         return Err(Error::InvalidState("u32 array too large for safe indexing"));
     }
-    
+
     // Verify we can multiply back without overflow
-    count.checked_mul(U32_SIZE)
-        .ok_or(Error::InvalidState("u32 array size calculation would overflow"))?;
-    
+    count.checked_mul(U32_SIZE).ok_or(Error::InvalidState(
+        "u32 array size calculation would overflow",
+    ))?;
+
     Ok(count)
 }
 
@@ -121,16 +122,199 @@ impl DynamicMatrix {
         }
     }
 
-    /// Create a row view
-    pub fn row_view(&self, row: usize) -> Result<RowView> {
+    /// Get row view iterator with zero-copy access
+    pub fn row_view(
+        &self,
+        row: usize,
+    ) -> Result<Box<dyn Iterator<Item = (usize, ArrayValue)> + '_>> {
         match self {
-            DynamicMatrix::F32(m) => m.row_view(row),
-            DynamicMatrix::F64(m) => m.row_view(row),
-            DynamicMatrix::I32(m) => m.row_view(row),
-            DynamicMatrix::I64(m) => m.row_view(row),
-            DynamicMatrix::U32(m) => m.row_view(row),
-            DynamicMatrix::U64(m) => m.row_view(row),
+            DynamicMatrix::F32(m) => {
+                let iter = m
+                    .row_view(row)?
+                    .map(|(col, val)| (col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::F64(m) => {
+                let iter = m
+                    .row_view(row)?
+                    .map(|(col, val)| (col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::I32(m) => {
+                let iter = m
+                    .row_view(row)?
+                    .map(|(col, val)| (col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::I64(m) => {
+                let iter = m
+                    .row_view(row)?
+                    .map(|(col, val)| (col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::U32(m) => {
+                let iter = m
+                    .row_view(row)?
+                    .map(|(col, val)| (col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::U64(m) => {
+                let iter = m
+                    .row_view(row)?
+                    .map(|(col, val)| (col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
         }
+    }
+
+    /// Get column view iterator with zero-copy access
+    pub fn col_view(
+        &self,
+        col: usize,
+    ) -> Result<Box<dyn Iterator<Item = (usize, ArrayValue)> + '_>> {
+        match self {
+            DynamicMatrix::F32(m) => {
+                let iter = m
+                    .col_view(col)?
+                    .map(|(row, val)| (row, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::F64(m) => {
+                let iter = m
+                    .col_view(col)?
+                    .map(|(row, val)| (row, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::I32(m) => {
+                let iter = m
+                    .col_view(col)?
+                    .map(|(row, val)| (row, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::I64(m) => {
+                let iter = m
+                    .col_view(col)?
+                    .map(|(row, val)| (row, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::U32(m) => {
+                let iter = m
+                    .col_view(col)?
+                    .map(|(row, val)| (row, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::U64(m) => {
+                let iter = m
+                    .col_view(col)?
+                    .map(|(row, val)| (row, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+        }
+    }
+
+    /// Get iterator over all rows in the matrix
+    pub fn rows(&self) -> DynamicMatrixRowIterator<'_> {
+        DynamicMatrixRowIterator {
+            matrix: self,
+            current_row: 0,
+            total_rows: self.nrows(),
+        }
+    }
+
+    /// Get efficient row range iterator that processes multiple rows in a single pass
+    pub fn row_range_view(
+        &self,
+        start_row: usize,
+        end_row: usize,
+    ) -> Result<Box<dyn Iterator<Item = (usize, usize, ArrayValue)> + '_>> {
+        match self {
+            DynamicMatrix::F32(m) => {
+                let iter = m
+                    .row_range_view(start_row, end_row)?
+                    .map(|(row, col, val)| (row, col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::F64(m) => {
+                let iter = m
+                    .row_range_view(start_row, end_row)?
+                    .map(|(row, col, val)| (row, col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::I32(m) => {
+                let iter = m
+                    .row_range_view(start_row, end_row)?
+                    .map(|(row, col, val)| (row, col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::I64(m) => {
+                let iter = m
+                    .row_range_view(start_row, end_row)?
+                    .map(|(row, col, val)| (row, col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::U32(m) => {
+                let iter = m
+                    .row_range_view(start_row, end_row)?
+                    .map(|(row, col, val)| (row, col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+            DynamicMatrix::U64(m) => {
+                let iter = m
+                    .row_range_view(start_row, end_row)?
+                    .map(|(row, col, val)| (row, col, val.to_array_value()));
+                Ok(Box::new(iter))
+            }
+        }
+    }
+}
+
+/// Iterator over all rows in a DynamicMatrix
+pub struct DynamicMatrixRowIterator<'a> {
+    matrix: &'a DynamicMatrix,
+    current_row: usize,
+    total_rows: usize,
+}
+
+impl<'a> Iterator for DynamicMatrixRowIterator<'a> {
+    type Item = (
+        usize,
+        Result<Box<dyn Iterator<Item = (usize, ArrayValue)> + 'a>>,
+    );
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_row >= self.total_rows {
+            return None;
+        }
+
+        let row_index = self.current_row;
+        self.current_row += 1;
+
+        Some((row_index, self.matrix.row_view(row_index)))
+    }
+}
+
+impl<'a> ExactSizeIterator for DynamicMatrixRowIterator<'a> {
+    fn len(&self) -> usize {
+        self.total_rows.saturating_sub(self.current_row)
+    }
+}
+
+// Implement ChunkableMatrix for DynamicMatrix
+impl crate::chunked_backend::ChunkableMatrix for DynamicMatrix {
+    fn nrows(&self) -> usize {
+        self.nrows()
+    }
+
+    fn ncols(&self) -> usize {
+        self.ncols()
+    }
+
+    fn nnz(&self) -> usize {
+        self.nnz()
+    }
+
+    fn get_element(&self, row: usize, col: usize) -> Result<Option<ArrayValue>> {
+        self.get_element(row, col)
     }
 }
 
@@ -152,31 +336,35 @@ pub trait MatrixElement: Copy + Clone + std::fmt::Debug + Send + Sync + 'static 
     /// Safely calculate array length from byte size with overflow protection
     fn validate_array_size(byte_len: usize) -> Result<usize> {
         let element_size = Self::size_bytes();
-        
+
         // Check alignment first
         if byte_len % element_size != 0 {
-            return Err(Error::InvalidState("Array size not aligned to element size"));
+            return Err(Error::InvalidState(
+                "Array size not aligned to element size",
+            ));
         }
-        
+
         // Use checked division to avoid overflow
         let count = byte_len / element_size;
-        
+
         // Check if the resulting array would be too large
         if count > isize::MAX as usize {
             return Err(Error::InvalidState("Array too large for safe indexing"));
         }
-        
+
         // Additional check: ensure we can multiply back without overflow
-        count.checked_mul(element_size)
+        count
+            .checked_mul(element_size)
             .ok_or(Error::InvalidState("Array size calculation would overflow"))?;
-        
+
         Ok(count)
     }
 
     /// Safely calculate total byte size from element count
     fn checked_byte_size(count: usize) -> Result<usize> {
         let element_size = Self::size_bytes();
-        count.checked_mul(element_size)
+        count
+            .checked_mul(element_size)
             .ok_or(Error::InvalidState("Byte size calculation would overflow"))
     }
 }
@@ -198,7 +386,8 @@ impl MatrixElement for f32 {
         if bytes.len() < 4 {
             return Err(Error::ConversionError("Insufficient bytes for f32"));
         }
-        let array: [u8; 4] = bytes[0..4].try_into()
+        let array: [u8; 4] = bytes[0..4]
+            .try_into()
             .map_err(|_| Error::ConversionError("Failed to convert bytes to f32 array"))?;
         Ok(f32::from_le_bytes(array))
     }
@@ -224,7 +413,8 @@ impl MatrixElement for f64 {
         if bytes.len() < 8 {
             return Err(Error::ConversionError("Insufficient bytes for f64"));
         }
-        let array: [u8; 8] = bytes[0..8].try_into()
+        let array: [u8; 8] = bytes[0..8]
+            .try_into()
             .map_err(|_| Error::ConversionError("Failed to convert bytes to f64 array"))?;
         Ok(f64::from_le_bytes(array))
     }
@@ -250,7 +440,8 @@ impl MatrixElement for i32 {
         if bytes.len() < 4 {
             return Err(Error::ConversionError("Insufficient bytes for i32"));
         }
-        let array: [u8; 4] = bytes[0..4].try_into()
+        let array: [u8; 4] = bytes[0..4]
+            .try_into()
             .map_err(|_| Error::ConversionError("Failed to convert bytes to i32 array"))?;
         Ok(i32::from_le_bytes(array))
     }
@@ -276,7 +467,8 @@ impl MatrixElement for i64 {
         if bytes.len() < 8 {
             return Err(Error::ConversionError("Insufficient bytes for i64"));
         }
-        let array: [u8; 8] = bytes[0..8].try_into()
+        let array: [u8; 8] = bytes[0..8]
+            .try_into()
             .map_err(|_| Error::ConversionError("Failed to convert bytes to i64 array"))?;
         Ok(i64::from_le_bytes(array))
     }
@@ -302,7 +494,8 @@ impl MatrixElement for u32 {
         if bytes.len() < 4 {
             return Err(Error::ConversionError("Insufficient bytes for u32"));
         }
-        let array: [u8; 4] = bytes[0..4].try_into()
+        let array: [u8; 4] = bytes[0..4]
+            .try_into()
             .map_err(|_| Error::ConversionError("Failed to convert bytes to u32 array"))?;
         Ok(u32::from_le_bytes(array))
     }
@@ -328,7 +521,8 @@ impl MatrixElement for u64 {
         if bytes.len() < 8 {
             return Err(Error::ConversionError("Insufficient bytes for u64"));
         }
-        let array: [u8; 8] = bytes[0..8].try_into()
+        let array: [u8; 8] = bytes[0..8]
+            .try_into()
             .map_err(|_| Error::ConversionError("Failed to convert bytes to u64 array"))?;
         Ok(u64::from_le_bytes(array))
     }
@@ -401,8 +595,11 @@ impl<T: MatrixElement> MmapMatrix<T> {
 
         // Extract data arrays from memory map with validation using checked arithmetic
         let values_start = header.values_offset as usize;
-        let values_end = values_start.checked_add(header.values_size as usize)
-            .ok_or(Error::InvalidState("Integer overflow in values array calculation"))?;
+        let values_end = values_start
+            .checked_add(header.values_size as usize)
+            .ok_or(Error::InvalidState(
+                "Integer overflow in values array calculation",
+            ))?;
 
         if values_end > mmap.len() {
             return Err(Error::InvalidState("Values array extends beyond file"));
@@ -421,15 +618,18 @@ impl<T: MatrixElement> MmapMatrix<T> {
         // SAFETY: Creating a slice from raw parts is unsafe, but safe here because:
         // 1. values_bytes is a valid slice from the memory map with proper bounds checking
         // 2. Alignment was verified above for type T
-        // 3. values_len was validated using T::validate_array_size() 
+        // 3. values_len was validated using T::validate_array_size()
         // 4. The pointer is derived from a valid memory mapping
         // 5. The lifetime is tied to the mmap which outlives this slice
         let values: &[T] =
             unsafe { std::slice::from_raw_parts(values_bytes.as_ptr() as *const T, values_len) };
 
         let row_indices_start = header.indices_0_offset as usize;
-        let row_indices_end = row_indices_start.checked_add(header.indices_0_size as usize)
-            .ok_or(Error::InvalidState("Integer overflow in row indices array calculation"))?;
+        let row_indices_end = row_indices_start
+            .checked_add(header.indices_0_size as usize)
+            .ok_or(Error::InvalidState(
+                "Integer overflow in row indices array calculation",
+            ))?;
 
         if row_indices_end > mmap.len() {
             return Err(Error::InvalidState("Row indices array extends beyond file"));
@@ -462,8 +662,11 @@ impl<T: MatrixElement> MmapMatrix<T> {
         };
 
         let col_indices_start = header.indices_1_offset as usize;
-        let col_indices_end = col_indices_start.checked_add(header.indices_1_size as usize)
-            .ok_or(Error::InvalidState("Integer overflow in column indices array calculation"))?;
+        let col_indices_end = col_indices_start
+            .checked_add(header.indices_1_size as usize)
+            .ok_or(Error::InvalidState(
+                "Integer overflow in column indices array calculation",
+            ))?;
 
         if col_indices_end > mmap.len() {
             return Err(Error::InvalidState(
@@ -472,7 +675,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
         }
 
         let col_indices_bytes = &mmap[col_indices_start..col_indices_end];
-        
+
         // Check alignment for u32
         if (col_indices_bytes.as_ptr() as usize) % std::mem::align_of::<u32>() != 0 {
             return Err(Error::InvalidState(
@@ -542,9 +745,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
         // 2. The mmap keeps the memory alive for the entire lifetime of self
         // 3. Data is immutable and accessed read-only
         // 4. No concurrent modification is possible
-        unsafe { 
-            std::slice::from_raw_parts(self.values, self.values_len)
-        }
+        unsafe { std::slice::from_raw_parts(self.values, self.values_len) }
     }
 
     /// Safe accessor for row indices array
@@ -554,9 +755,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
         // 2. The mmap keeps the memory alive for the entire lifetime of self
         // 3. Data is immutable and accessed read-only
         // 4. No concurrent modification is possible
-        unsafe {
-            std::slice::from_raw_parts(self.row_indices, self.row_indices_len)
-        }
+        unsafe { std::slice::from_raw_parts(self.row_indices, self.row_indices_len) }
     }
 
     /// Safe accessor for column indices array
@@ -566,9 +765,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
         // 2. The mmap keeps the memory alive for the entire lifetime of self
         // 3. Data is immutable and accessed read-only
         // 4. No concurrent modification is possible
-        unsafe {
-            std::slice::from_raw_parts(self.col_indices, self.col_indices_len)
-        }
+        unsafe { std::slice::from_raw_parts(self.col_indices, self.col_indices_len) }
     }
 
     /// Get element at specific position with comprehensive bounds checking
@@ -588,7 +785,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
         // Ensure all arrays have the same length (data integrity check)
         if values.len() != row_indices.len() || values.len() != col_indices.len() {
             return Err(Error::InvalidState(
-                "Corrupted data: array lengths don't match"
+                "Corrupted data: array lengths don't match",
             ));
         }
 
@@ -596,19 +793,19 @@ impl<T: MatrixElement> MmapMatrix<T> {
         for i in 0..values.len() {
             let file_row = row_indices[i] as usize;
             let file_col = col_indices[i] as usize;
-            
+
             // Validate indices from file against matrix dimensions
             if file_row >= self.nrows() {
                 return Err(Error::InvalidState(
-                    "Corrupted data: row index exceeds matrix dimensions"
+                    "Corrupted data: row index exceeds matrix dimensions",
                 ));
             }
             if file_col >= self.ncols() {
                 return Err(Error::InvalidState(
-                    "Corrupted data: column index exceeds matrix dimensions"
+                    "Corrupted data: column index exceeds matrix dimensions",
                 ));
             }
-            
+
             if file_row == row && file_col == col {
                 return Ok(Some(values[i].to_array_value()));
             }
@@ -647,73 +844,6 @@ impl<T: MatrixElement> crate::chunked_backend::ChunkableMatrix for MmapMatrix<T>
     }
 }
 
-/// View for matrix rows (simplified for production)
-pub struct RowView {
-    elements: Vec<(usize, ArrayValue)>, // (col_index, value) pairs
-}
-
-impl RowView {
-    pub fn new<T: MatrixElement>(matrix: &MmapMatrix<T>, row: usize) -> Result<Self> {
-        // Validate row index
-        if row >= matrix.nrows() {
-            return Err(Error::InvalidState("Row index out of bounds"));
-        }
-
-        let mut elements = Vec::new();
-        let values = matrix.values();
-        let row_indices = matrix.row_indices();
-        let col_indices = matrix.col_indices();
-
-        for i in 0..values.len() {
-            let file_row = row_indices[i] as usize;
-            let file_col = col_indices[i] as usize;
-            
-            // Validate file indices
-            if file_row >= matrix.nrows() {
-                return Err(Error::InvalidState("Corrupted data: row index exceeds matrix dimensions"));
-            }
-            if file_col >= matrix.ncols() {
-                return Err(Error::InvalidState("Corrupted data: column index exceeds matrix dimensions"));
-            }
-            
-            if file_row == row {
-                let array_value = values[i].to_array_value();
-                elements.push((file_col, array_value));
-            }
-        }
-
-        // Sort by column index
-        elements.sort_by_key(|&(col, _)| col);
-
-        Ok(Self { elements })
-    }
-
-    pub fn len(&self) -> usize {
-        self.elements.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.elements.is_empty()
-    }
-
-    pub fn shape(&self) -> (usize, usize) {
-        (1, self.len())
-    }
-
-    pub fn get_element(&self, _row: usize, col: usize) -> Result<Option<ArrayValue>> {
-        for (c, val) in &self.elements {
-            if *c == col {
-                return Ok(Some(val.clone()));
-            }
-        }
-        Ok(None)
-    }
-
-    pub fn nnz(&self) -> Result<usize> {
-        Ok(self.len())
-    }
-}
-
 /// View for matrix subregions (simplified for production)
 pub struct SubmatrixView<T: MatrixElement> {
     elements: HashMap<(usize, usize), T>,
@@ -730,7 +860,9 @@ impl<T: MatrixElement> SubmatrixView<T> {
             return Err(Error::InvalidState("Row range exceeds matrix dimensions"));
         }
         if cols.end > matrix.ncols() {
-            return Err(Error::InvalidState("Column range exceeds matrix dimensions"));
+            return Err(Error::InvalidState(
+                "Column range exceeds matrix dimensions",
+            ));
         }
         if rows.is_empty() || cols.is_empty() {
             return Err(Error::InvalidState("Empty range not allowed"));
@@ -747,10 +879,14 @@ impl<T: MatrixElement> SubmatrixView<T> {
 
             // Validate file indices
             if file_row >= matrix.nrows() {
-                return Err(Error::InvalidState("Corrupted data: row index exceeds matrix dimensions"));
+                return Err(Error::InvalidState(
+                    "Corrupted data: row index exceeds matrix dimensions",
+                ));
             }
             if file_col >= matrix.ncols() {
-                return Err(Error::InvalidState("Corrupted data: column index exceeds matrix dimensions"));
+                return Err(Error::InvalidState(
+                    "Corrupted data: column index exceeds matrix dimensions",
+                ));
             }
 
             if rows.contains(&file_row) && cols.contains(&file_col) {
@@ -778,9 +914,28 @@ impl<T: MatrixElement> SubmatrixView<T> {
 // Add view methods to MmapMatrix
 #[cfg(feature = "mmap")]
 impl<T: MatrixElement> MmapMatrix<T> {
-    /// Create a row view
-    pub fn row_view(&self, row: usize) -> Result<RowView> {
-        RowView::new(self, row)
+    /// Get row view with zero-copy iterator
+    pub fn row_view(&self, row: usize) -> Result<impl Iterator<Item = (usize, &T)> + '_> {
+        // Validate row index
+        if row >= self.nrows() {
+            return Err(Error::InvalidState("Row index out of bounds"));
+        }
+
+        let values = self.values();
+        let row_indices = self.row_indices();
+        let col_indices = self.col_indices();
+
+        Ok((0..values.len()).filter_map(move |i| {
+            let file_row = row_indices[i] as usize;
+            let file_col = col_indices[i] as usize;
+
+            // Filter for matching row and validate bounds
+            if file_row == row && file_row < self.nrows() && file_col < self.ncols() {
+                Some((file_col, &values[i]))
+            } else {
+                None
+            }
+        }))
     }
 
     /// Create a submatrix view
@@ -792,60 +947,61 @@ impl<T: MatrixElement> MmapMatrix<T> {
         SubmatrixView::new(self, rows, cols)
     }
 
-    /// Get column view with bounds checking
-    pub fn col_view(&self, col: usize) -> Result<Vec<T>> {
+    /// Get column view with zero-copy iterator
+    pub fn col_view(&self, col: usize) -> Result<impl Iterator<Item = (usize, &T)> + '_> {
         // Validate column index
         if col >= self.ncols() {
             return Err(Error::InvalidState("Column index out of bounds"));
         }
 
-        let mut result_values = Vec::new();
         let values = self.values();
+        let row_indices = self.row_indices();
         let col_indices = self.col_indices();
 
-        // Bounds checking within the loop
-        for i in 0..values.len() {
+        Ok((0..values.len()).filter_map(move |i| {
             let file_col = col_indices[i] as usize;
-            
-            // Validate file indices
-            if file_col >= self.ncols() {
-                return Err(Error::InvalidState("Corrupted data: column index exceeds matrix dimensions"));
-            }
-            
-            if file_col == col {
-                result_values.push(values[i]);
-            }
-        }
+            let file_row = row_indices[i] as usize;
 
-        Ok(result_values)
+            // Filter for matching column and validate bounds
+            if file_col == col && file_row < self.nrows() && file_col < self.ncols() {
+                Some((file_row, &values[i]))
+            } else {
+                None
+            }
+        }))
     }
 
-    /// Get column view as ArrayValues with bounds checking
-    pub fn col_view_as_array_values(&self, col: usize) -> Result<Vec<ArrayValue>> {
-        // Validate column index
-        if col >= self.ncols() {
-            return Err(Error::InvalidState("Column index out of bounds"));
+    /// Get efficient row range iterator that processes multiple rows in a single pass
+    pub fn row_range_view(
+        &self,
+        start_row: usize,
+        end_row: usize,
+    ) -> Result<impl Iterator<Item = (usize, usize, &T)> + '_> {
+        // Validate row range
+        if start_row >= self.nrows() || end_row > self.nrows() || start_row >= end_row {
+            return Err(Error::InvalidState("Invalid row range"));
         }
 
-        let mut result_values = Vec::new();
         let values = self.values();
+        let row_indices = self.row_indices();
         let col_indices = self.col_indices();
 
-        // Bounds checking within the loop
-        for i in 0..values.len() {
+        // Single pass through all elements, filtering for the row range
+        Ok((0..values.len()).filter_map(move |i| {
+            let file_row = row_indices[i] as usize;
             let file_col = col_indices[i] as usize;
-            
-            // Validate file indices
-            if file_col >= self.ncols() {
-                return Err(Error::InvalidState("Corrupted data: column index exceeds matrix dimensions"));
-            }
-            
-            if file_col == col {
-                result_values.push(values[i].to_array_value());
-            }
-        }
 
-        Ok(result_values)
+            // Filter for rows in range and validate bounds
+            if file_row >= start_row
+                && file_row < end_row
+                && file_row < self.nrows()
+                && file_col < self.ncols()
+            {
+                Some((file_row, file_col, &values[i]))
+            } else {
+                None
+            }
+        }))
     }
 }
 
@@ -883,15 +1039,12 @@ impl BspcFile {
         })
     }
 
-    /// Read matrix with memory mapping (requires explicit type)
+    /// Read matrix with mandatory bloom filter optimization
     #[cfg(feature = "mmap")]
-    pub fn read_matrix<T: MatrixElement, P: AsRef<Path>>(path: P) -> Result<MmapMatrix<T>> {
-        MmapMatrix::from_file(path)
-    }
-
-    /// Read matrix automatically determining type from file header
-    #[cfg(feature = "mmap")]
-    pub fn read_matrix_dynamic<P: AsRef<Path>>(path: P) -> Result<DynamicMatrix> {
+    pub fn read_matrix_with_bloom_filter<P: AsRef<Path>>(
+        path: P,
+        config: crate::chunked_backend::ChunkConfig,
+    ) -> Result<crate::chunked_backend::ChunkedMatrix<DynamicMatrix>> {
         // First, read just the header to determine the data type
         let path_ref = path.as_ref();
         let mut file = File::open(path_ref).map_err(|_| Error::IoError("Failed to open file"))?;
@@ -903,80 +1056,20 @@ impl BspcFile {
             .map_err(|_| Error::InvalidState("Invalid BSPC header format"))?;
 
         // Dispatch to the correct type based on the header
-        match DataType::from(header.data_type) {
-            DataType::F32 => Ok(DynamicMatrix::F32(MmapMatrix::from_file(path_ref)?)),
-            DataType::F64 => Ok(DynamicMatrix::F64(MmapMatrix::from_file(path_ref)?)),
-            DataType::I32 => Ok(DynamicMatrix::I32(MmapMatrix::from_file(path_ref)?)),
-            DataType::I64 => Ok(DynamicMatrix::I64(MmapMatrix::from_file(path_ref)?)),
-            DataType::U32 => Ok(DynamicMatrix::U32(MmapMatrix::from_file(path_ref)?)),
-            DataType::U64 => Ok(DynamicMatrix::U64(MmapMatrix::from_file(path_ref)?)),
-        }
-    }
-
-    /// Write matrix (implementation for matrices with ChunkableMatrix interface)
-    pub fn write_matrix<M: crate::chunked_backend::ChunkableMatrix>(
-        matrix: &M,
-        path: &Path,
-    ) -> Result<()> {
-        let nrows = matrix.nrows();
-        let ncols = matrix.ncols();
-        let _nnz = matrix.nnz();
-
-        // Create a minimal but valid file with proper dimensions
-        let mut file = File::create(path).map_err(|_| Error::IoError("Failed to create file"))?;
-
-        // Calculate offsets with proper alignment for empty data
-        let header_size = BspcHeader::SIZE as u32;
-        let values_offset = header_size.div_ceil(8)
-            .checked_mul(8)
-            .ok_or(Error::InvalidState("Integer overflow in values_offset calculation"))?;
-        let values_size = 0u32;
-        let indices_0_offset = values_offset.div_ceil(4)
-            .checked_mul(4)
-            .ok_or(Error::InvalidState("Integer overflow in indices_0_offset calculation"))?;
-        let indices_0_size = 0u32;
-        let indices_1_offset = indices_0_offset.div_ceil(4)
-            .checked_mul(4)
-            .ok_or(Error::InvalidState("Integer overflow in indices_1_offset calculation"))?;
-        let indices_1_size = 0u32;
-
-        // Create header with proper dimensions
-        let mut header = BspcHeader::new();
-        header.nrows = nrows as u32;
-        header.ncols = ncols as u32;
-        header.nnz = 0;
-        header.format_type = MatrixFormat::Coo as u8;
-        header.data_type = DataType::F64 as u8;
-        header.values_offset = values_offset;
-        header.values_size = values_size;
-        header.indices_0_offset = indices_0_offset;
-        header.indices_0_size = indices_0_size;
-        header.indices_1_offset = indices_1_offset;
-        header.indices_1_size = indices_1_size;
-
-        // SAFETY: Converting struct to byte slice is unsafe but safe here because:
-        // 1. BspcHeader is #[repr(C)] with fixed layout
-        // 2. We're taking a reference to a valid stack variable
-        // 3. The size is exactly BspcHeader::SIZE bytes
-        // 4. The struct contains only primitive types with known representation
-        // 5. We only read from this slice, no mutation
-        let header_bytes = unsafe {
-            std::slice::from_raw_parts(&header as *const BspcHeader as *const u8, BspcHeader::SIZE)
+        let dynamic_matrix = match DataType::from(header.data_type) {
+            DataType::F32 => DynamicMatrix::F32(MmapMatrix::from_file(path_ref)?),
+            DataType::F64 => DynamicMatrix::F64(MmapMatrix::from_file(path_ref)?),
+            DataType::I32 => DynamicMatrix::I32(MmapMatrix::from_file(path_ref)?),
+            DataType::I64 => DynamicMatrix::I64(MmapMatrix::from_file(path_ref)?),
+            DataType::U32 => DynamicMatrix::U32(MmapMatrix::from_file(path_ref)?),
+            DataType::U64 => DynamicMatrix::U64(MmapMatrix::from_file(path_ref)?),
         };
 
-        file.write_all(header_bytes)
-            .map_err(|_| Error::IoError("Failed to write header"))?;
-
-        // Write minimal empty data to make the file valid
-        let padding_size = (values_offset as usize).checked_sub(BspcHeader::SIZE)
-            .ok_or(Error::InvalidState("values_offset smaller than header size"))?;
-        if padding_size > 0 {
-            let padding = vec![0u8; padding_size];
-            file.write_all(&padding)
-                .map_err(|_| Error::IoError("Failed to write padding"))?;
-        }
-
-        Ok(())
+        // Wrap in ChunkedMatrix for bloom filter optimization
+        Ok(crate::chunked_backend::ChunkedMatrix::new(
+            dynamic_matrix,
+            config,
+        ))
     }
 
     /// Write sparse matrix streaming (complete implementation)
@@ -984,7 +1077,7 @@ impl BspcFile {
         nrows: usize,
         ncols: usize,
         sparse_elements: &[(usize, usize, T)],
-        _config: crate::chunked_backend::ChunkConfig,
+        config: crate::chunked_backend::ChunkConfig,
         filename: P,
     ) -> Result<()> {
         let path = filename.as_ref();
@@ -998,27 +1091,36 @@ impl BspcFile {
         // Align values to proper boundary for T
         let _element_size = T::size_bytes();
         let alignment = std::mem::align_of::<T>();
-        let values_offset = header_size.div_ceil(alignment as u32)
+        let values_offset = header_size
+            .div_ceil(alignment as u32)
             .checked_mul(alignment as u32)
-            .ok_or(Error::InvalidState("Integer overflow in values_offset calculation"))?;
-        
+            .ok_or(Error::InvalidState(
+                "Integer overflow in values_offset calculation",
+            ))?;
+
         // Use safe multiplication for values_size
         let values_size: u32 = T::checked_byte_size(nnz)?
             .try_into()
             .map_err(|_| Error::InvalidState("Values size too large for u32"))?;
 
-        // Align indices to 4-byte boundary for u32  
+        // Align indices to 4-byte boundary for u32
         let indices_0_offset = (values_offset + values_size).div_ceil(4) * 4;
-        
+
         // Use safe multiplication for indices size
-        let indices_0_size: u32 = nnz.checked_mul(4)
-            .ok_or(Error::InvalidState("Indices size calculation would overflow"))?
+        let indices_0_size: u32 = nnz
+            .checked_mul(4)
+            .ok_or(Error::InvalidState(
+                "Indices size calculation would overflow",
+            ))?
             .try_into()
             .map_err(|_| Error::InvalidState("Indices size too large for u32"))?;
 
         let indices_1_offset = (indices_0_offset + indices_0_size).div_ceil(4) * 4;
-        let indices_1_size: u32 = nnz.checked_mul(4)
-            .ok_or(Error::InvalidState("Indices size calculation would overflow"))?
+        let indices_1_size: u32 = nnz
+            .checked_mul(4)
+            .ok_or(Error::InvalidState(
+                "Indices size calculation would overflow",
+            ))?
             .try_into()
             .map_err(|_| Error::InvalidState("Indices size too large for u32"))?;
 
@@ -1038,6 +1140,21 @@ impl BspcFile {
         header.pointers_offset = 0; // Not used for COO
         header.pointers_size = 0;
 
+        // Create bloom filter (mandatory for all matrices)
+        use bspc_core::bloom_filter::BloomFilter;
+        let mut bloom_filter = BloomFilter::<32>::with_hash_count(config.bloom_hash_count);
+
+        // Insert all row indices into the bloom filter
+        for &(row, _, _) in sparse_elements {
+            bloom_filter.insert(row);
+        }
+
+        println!(
+            "Created bloom filter with {} hash functions for {} rows",
+            bloom_filter.hash_count(),
+            nrows
+        );
+
         // Write header
         // SAFETY: Converting struct to byte slice is unsafe but safe here because:
         // 1. BspcHeader is #[repr(C)] with fixed layout
@@ -1052,8 +1169,11 @@ impl BspcFile {
             .map_err(|_| Error::IoError("Failed to write header"))?;
 
         // Add padding to align values to 8-byte boundary
-        let padding_size = (values_offset as usize).checked_sub(BspcHeader::SIZE)
-            .ok_or(Error::InvalidState("values_offset smaller than header size"))?;
+        let padding_size = (values_offset as usize)
+            .checked_sub(BspcHeader::SIZE)
+            .ok_or(Error::InvalidState(
+                "values_offset smaller than header size",
+            ))?;
         if padding_size > 0 {
             let padding = vec![0u8; padding_size];
             file.write_all(&padding)
@@ -1103,11 +1223,12 @@ impl BspcFile {
             .map_err(|_| Error::IoError("Failed to flush file"))?;
 
         println!(
-            "Written matrix {}x{} with {} non-zeros to {}",
+            "Written matrix {}x{} with {} non-zeros to {} (bloom filter hash count: {})",
             nrows,
             ncols,
             nnz,
-            path.display()
+            path.display(),
+            config.bloom_hash_count
         );
 
         Ok(())

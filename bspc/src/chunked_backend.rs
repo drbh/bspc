@@ -40,41 +40,13 @@ impl<T: binsparse_rs::backend::StorageBackend> ChunkableMatrix for binsparse_rs:
     }
 }
 
-/// Memory statistics for benchmarking
-#[derive(Debug, Clone)]
-pub struct MemoryStats {
-    pub operations_per_second: f64,
-    pub memory_usage_mb: f64,
-    pub cache_hit_rate: f64,
-    pub max_memory_mb: f64,
-    pub operations_count: usize,
-    pub hash_count: u8,
-    pub hit_rate: f64,
-}
-
-impl Default for MemoryStats {
-    fn default() -> Self {
-        Self {
-            operations_per_second: 1000.0,
-            memory_usage_mb: 128.0,
-            cache_hit_rate: 0.95,
-            max_memory_mb: 128.0,
-            operations_count: 1000,
-            hash_count: 3,
-            hit_rate: 0.95,
-        }
-    }
-}
-
-/// Configuration for chunked processing
+/// Configuration for chunked processing with mandatory bloom filters
 #[derive(Debug, Clone)]
 pub struct ChunkConfig {
     /// Maximum memory usage per chunk in MB
     pub memory_limit_mb: usize,
     /// Number of hash functions for bloom filters
     pub bloom_hash_count: u8,
-    /// Enable bloom filter optimization
-    pub use_bloom_filter: bool,
 }
 
 impl ChunkConfig {
@@ -83,7 +55,6 @@ impl ChunkConfig {
         Self {
             memory_limit_mb,
             bloom_hash_count: 3,
-            use_bloom_filter: true,
         }
     }
 
@@ -110,7 +81,6 @@ impl Default for ChunkConfig {
         Self {
             memory_limit_mb: 128,
             bloom_hash_count: 3,
-            use_bloom_filter: true,
         }
     }
 }
@@ -237,31 +207,105 @@ impl<M: ChunkableMatrix> ChunkedMatrix<M> {
             format!("Performed {operations} streaming accesses"),
         ))
     }
+}
 
-    /// Fast row access (compatibility method)
-    pub fn fast_row_access<F>(
-        &mut self,
-        target_row: usize,
-        mut f: F,
-    ) -> Result<(Vec<(usize, usize)>, MemoryStats)>
-    where
-        F: FnMut(usize, usize) -> Option<(usize, usize)>,
+// Special implementation for ChunkedMatrix<DynamicMatrix> to provide row/column iterators
+impl ChunkedMatrix<crate::mmap_backend::DynamicMatrix> {
+    /// Get row view iterator
+    pub fn row_view(
+        &self,
+        row: usize,
+    ) -> binsparse_rs::Result<Box<dyn Iterator<Item = (usize, binsparse_rs::array::ArrayValue)> + '_>>
     {
-        let mut elements = Vec::new();
-        let (_, ncols) = self.dimensions();
-
-        for col in 0..ncols.min(10) {
-            // Limit to first 10 columns for stub
-            if let Some(element) = f(target_row, col) {
-                elements.push(element);
-            }
-        }
-
-        Ok((elements, MemoryStats::default()))
+        self.inner
+            .matrix
+            .row_view(row)
+            .map_err(|_| binsparse_rs::Error::InvalidState("Row view error"))
     }
 
-    /// Get bloom filter stats (stub implementation)
-    pub fn get_bloom_filter_stats(&self) -> Vec<(usize, MemoryStats)> {
-        vec![(0, MemoryStats::default())]
+    /// Get column view iterator
+    pub fn col_view(
+        &self,
+        col: usize,
+    ) -> binsparse_rs::Result<Box<dyn Iterator<Item = (usize, binsparse_rs::array::ArrayValue)> + '_>>
+    {
+        self.inner
+            .matrix
+            .col_view(col)
+            .map_err(|_| binsparse_rs::Error::InvalidState("Column view error"))
+    }
+
+    /// Get iterator over all rows in the matrix
+    pub fn rows(&self) -> ChunkedMatrixRowIterator<'_> {
+        ChunkedMatrixRowIterator {
+            matrix: &self.inner.matrix,
+            current_row: 0,
+            total_rows: self.inner.matrix.nrows(),
+        }
+    }
+
+    /// Get iterator over a range of rows
+    pub fn rows_range(&self, start: usize, end: usize) -> ChunkedMatrixRowIterator<'_> {
+        let total_rows = self.inner.matrix.nrows();
+        let end = end.min(total_rows);
+        let start = start.min(end);
+
+        ChunkedMatrixRowIterator {
+            matrix: &self.inner.matrix,
+            current_row: start,
+            total_rows: end,
+        }
+    }
+
+    /// Get optimized row range iterator for bulk processing (single pass through data)
+    pub fn row_range_view(
+        &self,
+        start: usize,
+        end: usize,
+    ) -> binsparse_rs::Result<
+        Box<dyn Iterator<Item = (usize, usize, binsparse_rs::array::ArrayValue)> + '_>,
+    > {
+        self.inner
+            .matrix
+            .row_range_view(start, end)
+            .map_err(|_| binsparse_rs::Error::InvalidState("Row range view error"))
+    }
+}
+
+/// Iterator over all rows in a ChunkedMatrix<DynamicMatrix>
+pub struct ChunkedMatrixRowIterator<'a> {
+    matrix: &'a crate::mmap_backend::DynamicMatrix,
+    current_row: usize,
+    total_rows: usize,
+}
+
+impl<'a> Iterator for ChunkedMatrixRowIterator<'a> {
+    type Item = (
+        usize,
+        binsparse_rs::Result<
+            Box<dyn Iterator<Item = (usize, binsparse_rs::array::ArrayValue)> + 'a>,
+        >,
+    );
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current_row >= self.total_rows {
+            return None;
+        }
+
+        let row_index = self.current_row;
+        self.current_row += 1;
+
+        let row_result = self
+            .matrix
+            .row_view(row_index)
+            .map_err(|_| binsparse_rs::Error::InvalidState("Row view error"));
+
+        Some((row_index, row_result))
+    }
+}
+
+impl<'a> ExactSizeIterator for ChunkedMatrixRowIterator<'a> {
+    fn len(&self) -> usize {
+        self.total_rows.saturating_sub(self.current_row)
     }
 }

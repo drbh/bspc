@@ -52,7 +52,7 @@ fn build_demo_sparse_elements(
     sparse_rows: &[usize],
     elements_per_row: usize,
 ) -> Vec<(usize, usize, f64)> {
-// ) -> Vec<(usize, usize, i32)> {
+    // ) -> Vec<(usize, usize, i32)> {
     let mut elements = Vec::with_capacity(sparse_rows.len() * elements_per_row);
 
     for &row in sparse_rows {

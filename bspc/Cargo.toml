@@ -23,10 +23,10 @@ hashbrown = { workspace = true }
 criterion = { workspace = true }
 rand = { workspace = true }
 
-[[bench]]
-name = "bspc_benchmarks"
-harness = false
+# [[bench]]
+# name = "bspc_benchmarks"
+# harness = false
 
-[[bench]]
-name = "large_file_benchmarks"
-harness = false
+# [[bench]]
+# name = "large_file_benchmarks"
+# harness = false

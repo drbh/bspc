@@ -9,9 +9,10 @@
 **Query massive sparse matrices instantly. Zero-copy. Memory-mapped.**
 
 ```
-┌─────────────────────────────┐
-│  Header │ Bloom │  Data     │  .bspc format
-└─────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  BSPC Header  │  Values  │  Row Indices  │  Col Indices      │
+│     68B       │ Variable │   Variable    │   Variable        │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### Why BSPC?
@@ -25,7 +26,7 @@ Sparse matrices are everywhere in ML, but existing formats are slow for queries:
 | NPZ      | ✗         | ✗             | Slow        |
 | **BSPC** | **✓**     | **✓**         | **Fast**    |
 
-**The secret:** Bloom filters skip 90%+ of disk reads.
+**The secret:** Memory-mapped access + runtime bloom filters skip 90%+ of disk reads.
 
 ### Usage
 

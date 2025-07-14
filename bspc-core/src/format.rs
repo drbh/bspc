@@ -91,7 +91,7 @@ impl BspcHeader {
         }
 
         // Validate magic bytes first
-        if &bytes[0..4] != &Self::MAGIC {
+        if bytes[0..4] != Self::MAGIC {
             return Err(crate::error::BspcError::InvalidHeader);
         }
 
@@ -102,7 +102,7 @@ impl BspcHeader {
         header.format_type = bytes[5];
         header.data_type = bytes[6];
         header.structure_flags = bytes[7];
-        
+
         // Read u32 fields in little-endian format
         header.nrows = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
         header.ncols = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
@@ -115,7 +115,7 @@ impl BspcHeader {
         header.indices_1_size = u32::from_le_bytes([bytes[40], bytes[41], bytes[42], bytes[43]]);
         header.pointers_offset = u32::from_le_bytes([bytes[44], bytes[45], bytes[46], bytes[47]]);
         header.pointers_size = u32::from_le_bytes([bytes[48], bytes[49], bytes[50], bytes[51]]);
-        
+
         // Copy reserved bytes
         header.reserved.copy_from_slice(&bytes[52..68]);
 
