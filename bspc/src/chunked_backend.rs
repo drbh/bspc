@@ -126,6 +126,11 @@ impl<M: ChunkableMatrix> ChunkedMatrix<M> {
         }
     }
 
+    /// Get reference to the underlying matrix
+    pub fn matrix(&self) -> &M {
+        &self.inner.matrix
+    }
+
     /// Create from file (compatibility method)
     #[cfg(feature = "mmap")]
     pub fn from_file<T: crate::mmap_backend::MatrixElement, P: AsRef<std::path::Path>>(

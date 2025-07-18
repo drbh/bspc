@@ -84,6 +84,25 @@ impl BspcHeader {
         self.magic == Self::MAGIC && self.version <= Self::VERSION
     }
 
+    /// Get metadata region offset and size from reserved bytes
+    /// Returns None if no metadata is present (offset or size is 0)
+    pub fn metadata_region(&self) -> Option<(u64, u64)> {
+        let offset = u64::from_le_bytes(self.reserved[0..8].try_into().unwrap_or([0; 8]));
+        let size = u64::from_le_bytes(self.reserved[8..16].try_into().unwrap_or([0; 8]));
+
+        if offset == 0 || size == 0 {
+            None
+        } else {
+            Some((offset, size))
+        }
+    }
+
+    /// Set metadata region offset and size in reserved bytes
+    pub fn set_metadata_region(&mut self, offset: u64, size: u64) {
+        self.reserved[0..8].copy_from_slice(&offset.to_le_bytes());
+        self.reserved[8..16].copy_from_slice(&size.to_le_bytes());
+    }
+
     /// Safely read header from bytes with validation
     pub fn from_bytes(bytes: &[u8]) -> crate::error::Result<Self> {
         if bytes.len() < Self::SIZE {

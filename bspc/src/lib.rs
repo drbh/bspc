@@ -11,6 +11,7 @@ use binsparse_rs::{array::ArrayValue, matrix::Matrix};
 // I/O and memory mapping features
 pub mod chunked_backend;
 pub mod http_backend;
+pub mod metadata;
 #[cfg(feature = "mmap")]
 pub mod mmap_backend;
 
@@ -23,6 +24,9 @@ pub use mmap_backend::{BspcFile, DynamicMatrix, MatrixElement, MmapMatrix, Subma
 // HTTP backend features
 #[cfg(feature = "http")]
 pub use http_backend::{parse_range, HttpMatrix};
+
+// Metadata features
+pub use metadata::{BspcMetadataHeader, LabelArray, MetadataBuilder, MetadataView};
 
 /// Extension trait to add row and column access methods to Matrix
 pub trait MatrixExtensions<T: binsparse_rs::backend::StorageBackend> {

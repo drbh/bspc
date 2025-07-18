@@ -266,6 +266,55 @@ impl DynamicMatrix {
             }
         }
     }
+
+    /// Get metadata bytes from the memory-mapped file
+    /// Returns None if no metadata is present
+    pub fn metadata_bytes(&self) -> Option<&[u8]> {
+        match self {
+            DynamicMatrix::F32(m) => m.metadata_bytes(),
+            DynamicMatrix::F64(m) => m.metadata_bytes(),
+            DynamicMatrix::I32(m) => m.metadata_bytes(),
+            DynamicMatrix::I64(m) => m.metadata_bytes(),
+            DynamicMatrix::U32(m) => m.metadata_bytes(),
+            DynamicMatrix::U64(m) => m.metadata_bytes(),
+        }
+    }
+
+    /// Get structured metadata view for fast label lookups
+    pub fn metadata_view(&self) -> Result<Option<crate::metadata::MetadataView<'_>>> {
+        match self {
+            DynamicMatrix::F32(m) => m.metadata_view(),
+            DynamicMatrix::F64(m) => m.metadata_view(),
+            DynamicMatrix::I32(m) => m.metadata_view(),
+            DynamicMatrix::I64(m) => m.metadata_view(),
+            DynamicMatrix::U32(m) => m.metadata_view(),
+            DynamicMatrix::U64(m) => m.metadata_view(),
+        }
+    }
+
+    /// Get row label by index
+    pub fn row_label(&self, row_idx: u32) -> Result<Option<&[u8]>> {
+        match self {
+            DynamicMatrix::F32(m) => m.row_label(row_idx),
+            DynamicMatrix::F64(m) => m.row_label(row_idx),
+            DynamicMatrix::I32(m) => m.row_label(row_idx),
+            DynamicMatrix::I64(m) => m.row_label(row_idx),
+            DynamicMatrix::U32(m) => m.row_label(row_idx),
+            DynamicMatrix::U64(m) => m.row_label(row_idx),
+        }
+    }
+
+    /// Get column label by index
+    pub fn col_label(&self, col_idx: u32) -> Result<Option<&[u8]>> {
+        match self {
+            DynamicMatrix::F32(m) => m.col_label(col_idx),
+            DynamicMatrix::F64(m) => m.col_label(col_idx),
+            DynamicMatrix::I32(m) => m.col_label(col_idx),
+            DynamicMatrix::I64(m) => m.col_label(col_idx),
+            DynamicMatrix::U32(m) => m.col_label(col_idx),
+            DynamicMatrix::U64(m) => m.col_label(col_idx),
+        }
+    }
 }
 
 /// Iterator over all rows in a DynamicMatrix
@@ -822,6 +871,111 @@ impl<T: MatrixElement> MmapMatrix<T> {
     pub fn data_type(&self) -> DataType {
         DataType::from(self.header.data_type)
     }
+
+    /// Get metadata bytes from the memory-mapped file
+    /// Returns None if no metadata is present
+    pub fn metadata_bytes(&self) -> Option<&[u8]> {
+        if let Some((offset, size)) = self.header.metadata_region() {
+            // Validate offset and size against memory map bounds
+            let start = offset as usize;
+            let end = start.checked_add(size as usize)?;
+
+            if end <= self._mmap.len() {
+                Some(&self._mmap[start..end])
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Get structured metadata view for fast label lookups
+    pub fn metadata_view(&self) -> Result<Option<crate::metadata::MetadataView<'_>>> {
+        if let Some(metadata_bytes) = self.metadata_bytes() {
+            Ok(Some(crate::metadata::MetadataView::new(metadata_bytes)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get row label by index
+    pub fn row_label(&self, row_idx: u32) -> Result<Option<&[u8]>> {
+        if let Some(metadata_bytes) = self.metadata_bytes() {
+            // Parse header
+            let header = crate::metadata::BspcMetadataHeader::from_bytes(metadata_bytes)?;
+
+            // Parse row labels array
+            if header.row_labels_size == 0 {
+                return Ok(None);
+            }
+
+            let start = header.row_labels_offset as usize;
+            let end = start + header.row_labels_size as usize;
+
+            if end > metadata_bytes.len() {
+                return Err(Error::InvalidState("Row labels extend beyond metadata"));
+            }
+
+            let labels_data = &metadata_bytes[start..end];
+            let labels_array = crate::metadata::LabelArray::from_bytes(labels_data)?;
+
+            if row_idx >= labels_array.count {
+                return Err(Error::InvalidState("Row index out of bounds"));
+            }
+
+            let label_start = crate::metadata::LabelArray::HEADER_SIZE
+                + (row_idx as usize * labels_array.stride as usize);
+            let label_end = label_start + labels_array.stride as usize;
+
+            if label_end > labels_data.len() {
+                return Err(Error::InvalidState("Row label extends beyond data"));
+            }
+
+            Ok(Some(&labels_data[label_start..label_end]))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Get column label by index
+    pub fn col_label(&self, col_idx: u32) -> Result<Option<&[u8]>> {
+        if let Some(metadata_bytes) = self.metadata_bytes() {
+            // Parse header
+            let header = crate::metadata::BspcMetadataHeader::from_bytes(metadata_bytes)?;
+
+            // Parse column labels array
+            if header.col_labels_size == 0 {
+                return Ok(None);
+            }
+
+            let start = header.col_labels_offset as usize;
+            let end = start + header.col_labels_size as usize;
+
+            if end > metadata_bytes.len() {
+                return Err(Error::InvalidState("Column labels extend beyond metadata"));
+            }
+
+            let labels_data = &metadata_bytes[start..end];
+            let labels_array = crate::metadata::LabelArray::from_bytes(labels_data)?;
+
+            if col_idx >= labels_array.count {
+                return Err(Error::InvalidState("Column index out of bounds"));
+            }
+
+            let label_start = crate::metadata::LabelArray::HEADER_SIZE
+                + (col_idx as usize * labels_array.stride as usize);
+            let label_end = label_start + labels_array.stride as usize;
+
+            if label_end > labels_data.len() {
+                return Err(Error::InvalidState("Column label extends beyond data"));
+            }
+
+            Ok(Some(&labels_data[label_start..label_end]))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 // Implement ChunkableMatrix for MmapMatrix
@@ -1229,6 +1383,187 @@ impl BspcFile {
             nnz,
             path.display(),
             config.bloom_hash_count
+        );
+
+        Ok(())
+    }
+
+    /// Write sparse matrix with structured metadata
+    pub fn write_sparse_matrix_with_labels<T: MatrixElement, P: AsRef<Path>>(
+        nrows: usize,
+        ncols: usize,
+        sparse_elements: &[(usize, usize, T)],
+        row_labels: &[&[u8]],
+        col_labels: &[&[u8]],
+        label_stride: u32,
+        _config: crate::chunked_backend::ChunkConfig,
+        filename: P,
+    ) -> Result<()> {
+        let path = filename.as_ref();
+        let mut file = File::create(path).map_err(|_| Error::IoError("Failed to create file"))?;
+
+        let nnz = sparse_elements.len();
+
+        // Calculate matrix data layout first
+        let header_size = BspcHeader::SIZE as u32;
+        let _element_size = T::size_bytes();
+        let alignment = std::mem::align_of::<T>();
+        let values_offset = header_size
+            .div_ceil(alignment as u32)
+            .checked_mul(alignment as u32)
+            .ok_or(Error::InvalidState(
+                "Integer overflow in values_offset calculation",
+            ))?;
+
+        let values_size: u32 = T::checked_byte_size(nnz)?
+            .try_into()
+            .map_err(|_| Error::InvalidState("Values size too large for u32"))?;
+
+        let indices_0_offset = (values_offset + values_size).div_ceil(4) * 4;
+        let indices_0_size: u32 = nnz
+            .checked_mul(4)
+            .ok_or(Error::InvalidState(
+                "Indices size calculation would overflow",
+            ))?
+            .try_into()
+            .map_err(|_| Error::InvalidState("Indices size too large for u32"))?;
+
+        let indices_1_offset = (indices_0_offset + indices_0_size).div_ceil(4) * 4;
+        let indices_1_size: u32 = nnz
+            .checked_mul(4)
+            .ok_or(Error::InvalidState(
+                "Indices size calculation would overflow",
+            ))?
+            .try_into()
+            .map_err(|_| Error::InvalidState("Indices size too large for u32"))?;
+
+        let matrix_end = indices_1_offset + indices_1_size;
+
+        // Build structured metadata
+        let metadata = if !row_labels.is_empty() || !col_labels.is_empty() {
+            let mut builder = crate::metadata::MetadataBuilder::new(label_stride);
+
+            if !row_labels.is_empty() {
+                builder = builder
+                    .with_row_labels(row_labels.iter().map(|&label| label.to_vec()).collect())?;
+            }
+
+            if !col_labels.is_empty() {
+                builder = builder
+                    .with_col_labels(col_labels.iter().map(|&label| label.to_vec()).collect())?;
+            }
+
+            Some(builder.build()?)
+        } else {
+            None
+        };
+
+        // Calculate metadata layout
+        let metadata_start = crate::metadata::align_to_8(matrix_end as usize) as u64;
+        let metadata_size = metadata.as_ref().map(|m| m.len() as u64).unwrap_or(0);
+
+        // Create header with metadata pointer
+        let mut header = BspcHeader::new();
+        header.nrows = nrows as u32;
+        header.ncols = ncols as u32;
+        header.nnz = nnz as u32;
+        header.format_type = MatrixFormat::Coo as u8;
+        header.data_type = T::data_type() as u8;
+        header.values_offset = values_offset;
+        header.values_size = values_size;
+        header.indices_0_offset = indices_0_offset;
+        header.indices_0_size = indices_0_size;
+        header.indices_1_offset = indices_1_offset;
+        header.indices_1_size = indices_1_size;
+        header.pointers_offset = 0;
+        header.pointers_size = 0;
+
+        // Set metadata region in header
+        if let Some(ref _metadata) = metadata {
+            header.set_metadata_region(metadata_start, metadata_size);
+        }
+
+        // Write header
+        let header_bytes = unsafe {
+            std::slice::from_raw_parts(&header as *const BspcHeader as *const u8, BspcHeader::SIZE)
+        };
+        file.write_all(header_bytes)
+            .map_err(|_| Error::IoError("Failed to write header"))?;
+
+        // Write matrix data (same as before)
+        let padding_size = (values_offset as usize)
+            .checked_sub(BspcHeader::SIZE)
+            .ok_or(Error::InvalidState(
+                "values_offset smaller than header size",
+            ))?;
+        if padding_size > 0 {
+            let padding = vec![0u8; padding_size];
+            file.write_all(&padding)
+                .map_err(|_| Error::IoError("Failed to write alignment padding"))?;
+        }
+
+        // Write values
+        for &(_, _, value) in sparse_elements {
+            let value_bytes = value.to_le_bytes();
+            file.write_all(&value_bytes)
+                .map_err(|_| Error::IoError("Failed to write values"))?;
+        }
+
+        // Write row indices
+        let current_pos = values_offset + values_size;
+        let padding_size = indices_0_offset - current_pos;
+        if padding_size > 0 {
+            let padding = vec![0u8; padding_size as usize];
+            file.write_all(&padding)
+                .map_err(|_| Error::IoError("Failed to write alignment padding"))?;
+        }
+
+        for &(row, _, _) in sparse_elements {
+            let row_bytes = (row as u32).to_le_bytes();
+            file.write_all(&row_bytes)
+                .map_err(|_| Error::IoError("Failed to write row indices"))?;
+        }
+
+        // Write column indices
+        let current_pos = indices_0_offset + indices_0_size;
+        let padding_size = indices_1_offset - current_pos;
+        if padding_size > 0 {
+            let padding = vec![0u8; padding_size as usize];
+            file.write_all(&padding)
+                .map_err(|_| Error::IoError("Failed to write alignment padding"))?;
+        }
+
+        for &(_, col, _) in sparse_elements {
+            let col_bytes = (col as u32).to_le_bytes();
+            file.write_all(&col_bytes)
+                .map_err(|_| Error::IoError("Failed to write column indices"))?;
+        }
+
+        // Write metadata if present
+        if let Some(metadata) = metadata {
+            // Add padding to align metadata to 8-byte boundary
+            let current_pos = indices_1_offset + indices_1_size;
+            let padding_size = metadata_start - current_pos as u64;
+            if padding_size > 0 {
+                let padding = vec![0u8; padding_size as usize];
+                file.write_all(&padding)
+                    .map_err(|_| Error::IoError("Failed to write metadata alignment padding"))?;
+            }
+
+            file.write_all(&metadata)
+                .map_err(|_| Error::IoError("Failed to write metadata"))?;
+        }
+
+        file.flush()
+            .map_err(|_| Error::IoError("Failed to flush file"))?;
+
+        println!(
+            "Written matrix {}x{} with {} non-zeros and {} metadata bytes to {}",
+            nrows,
+            ncols,
+            nnz,
+            metadata_size,
+            path.display()
         );
 
         Ok(())
