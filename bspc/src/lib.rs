@@ -9,12 +9,14 @@ pub use bspc_core::*;
 use binsparse_rs::{array::ArrayValue, matrix::Matrix};
 
 // I/O and memory mapping features
+pub mod chunk_bloom_filter;
 pub mod chunked_backend;
 pub mod http_backend;
 pub mod metadata;
 #[cfg(feature = "mmap")]
 pub mod mmap_backend;
 
+pub use chunk_bloom_filter::ChunkBloomFilter;
 pub use chunked_backend::{ChunkConfig, ChunkableMatrix, ChunkedMatrix, ChunkedProcessor};
 
 // Memory mapping features

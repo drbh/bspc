@@ -97,8 +97,29 @@ impl BspcHeader {
         }
     }
 
+    /// Get chunk bloom filter region offset and size from reserved bytes
+    /// Returns None if no chunk bloom filter is present (offset or size is 0)
+    pub fn chunk_bloom_filter_region(&self) -> Option<(u64, u64)> {
+        // Use reserved bytes for chunk bloom filter: bytes 0-7 for offset, 8-15 for size
+        // This overlaps with metadata_region but chunk bloom filters take precedence
+        let offset = u64::from_le_bytes(self.reserved[0..8].try_into().unwrap_or([0; 8]));
+        let size = u64::from_le_bytes(self.reserved[8..16].try_into().unwrap_or([0; 8]));
+
+        if offset == 0 || size == 0 {
+            None
+        } else {
+            Some((offset, size))
+        }
+    }
+
     /// Set metadata region offset and size in reserved bytes
     pub fn set_metadata_region(&mut self, offset: u64, size: u64) {
+        self.reserved[0..8].copy_from_slice(&offset.to_le_bytes());
+        self.reserved[8..16].copy_from_slice(&size.to_le_bytes());
+    }
+
+    /// Set chunk bloom filter region offset and size in reserved bytes
+    pub fn set_chunk_bloom_filter_region(&mut self, offset: u64, size: u64) {
         self.reserved[0..8].copy_from_slice(&offset.to_le_bytes());
         self.reserved[8..16].copy_from_slice(&size.to_le_bytes());
     }

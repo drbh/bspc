@@ -10,7 +10,7 @@ use memmap2::{Mmap, MmapOptions};
 use std::{
     collections::HashMap,
     fs::File,
-    io::{Read, Write},
+    io::{Read, Seek, Write},
     path::Path,
 };
 
@@ -592,6 +592,7 @@ pub struct MmapMatrix<T: MatrixElement> {
     row_indices_len: usize,
     col_indices: *const u32,
     col_indices_len: usize,
+    chunk_bloom_filter: Option<crate::chunk_bloom_filter::ChunkBloomFilter>,
     _phantom: std::marker::PhantomData<T>,
 }
 
@@ -761,6 +762,21 @@ impl<T: MatrixElement> MmapMatrix<T> {
         let col_indices_ptr = col_indices.as_ptr();
         let col_indices_len = col_indices.len();
 
+        // Load chunk bloom filter if available
+        let chunk_bloom_filter = if let Some((offset, size)) = header.chunk_bloom_filter_region() {
+            let start = offset as usize;
+            let end = start + size as usize;
+
+            if end > mmap.len() {
+                None // Skip bloom filter if it extends beyond file (backward compatibility)
+            } else {
+                let bloom_filter_data = &mmap[start..end];
+                crate::chunk_bloom_filter::ChunkBloomFilter::deserialize(bloom_filter_data).ok()
+            }
+        } else {
+            None
+        };
+
         Ok(Self {
             _mmap: mmap,
             header,
@@ -770,6 +786,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
             row_indices_len,
             col_indices: col_indices_ptr,
             col_indices_len,
+            chunk_bloom_filter,
             _phantom: std::marker::PhantomData,
         })
     }
@@ -817,6 +834,11 @@ impl<T: MatrixElement> MmapMatrix<T> {
         unsafe { std::slice::from_raw_parts(self.col_indices, self.col_indices_len) }
     }
 
+    /// Get chunk bloom filter if available
+    pub fn chunk_bloom_filter(&self) -> Option<&crate::chunk_bloom_filter::ChunkBloomFilter> {
+        self.chunk_bloom_filter.as_ref()
+    }
+
     /// Get element at specific position with comprehensive bounds checking
     pub fn get_element(&self, row: usize, col: usize) -> Result<Option<ArrayValue>> {
         // Validate input coordinates against matrix dimensions
@@ -836,6 +858,13 @@ impl<T: MatrixElement> MmapMatrix<T> {
             return Err(Error::InvalidState(
                 "Corrupted data: array lengths don't match",
             ));
+        }
+
+        // Use chunk bloom filter for early exit if available
+        if let Some(ref bloom_filter) = self.chunk_bloom_filter {
+            if !bloom_filter.may_contain_row(row) {
+                return Ok(None); // Definitively no data in this row
+            }
         }
 
         // For COO format, search through all entries with bounds checking
@@ -1126,11 +1155,12 @@ impl<T: MatrixElement> MmapMatrix<T> {
     }
 
     /// Get efficient row range iterator that processes multiple rows in a single pass
+    /// Uses chunk-level bloom filtering to skip chunks that don't contain data in the range
     pub fn row_range_view(
         &self,
         start_row: usize,
         end_row: usize,
-    ) -> Result<impl Iterator<Item = (usize, usize, &T)> + '_> {
+    ) -> Result<Box<dyn Iterator<Item = (usize, usize, &T)> + '_>> {
         // Validate row range
         if start_row >= self.nrows() || end_row > self.nrows() || start_row >= end_row {
             return Err(Error::InvalidState("Invalid row range"));
@@ -1140,22 +1170,70 @@ impl<T: MatrixElement> MmapMatrix<T> {
         let row_indices = self.row_indices();
         let col_indices = self.col_indices();
 
-        // Single pass through all elements, filtering for the row range
-        Ok((0..values.len()).filter_map(move |i| {
-            let file_row = row_indices[i] as usize;
-            let file_col = col_indices[i] as usize;
+        // Use chunk bloom filter if available for efficient filtering
+        if let Some(ref bloom_filter) = self.chunk_bloom_filter {
+            let relevant_chunks = bloom_filter.may_contain_range(start_row, end_row);
 
-            // Filter for rows in range and validate bounds
-            if file_row >= start_row
-                && file_row < end_row
-                && file_row < self.nrows()
-                && file_col < self.ncols()
-            {
-                Some((file_row, file_col, &values[i]))
-            } else {
-                None
+            // Early return if no chunks contain data in the range
+            if relevant_chunks.is_empty() {
+                return Ok(Box::new((0..0).filter_map(move |_| None)));
             }
-        }))
+
+            // Convert chunk indices to row ranges for efficient filtering
+            let chunk_size = bloom_filter.chunk_size();
+            let mut relevant_row_ranges = Vec::new();
+
+            for chunk_idx in relevant_chunks {
+                let chunk_start = chunk_idx * chunk_size;
+                let chunk_end = ((chunk_idx + 1) * chunk_size).min(self.nrows());
+
+                // Only include the intersection with the requested range
+                let range_start = start_row.max(chunk_start);
+                let range_end = end_row.min(chunk_end);
+
+                if range_start < range_end {
+                    relevant_row_ranges.push(range_start..range_end);
+                }
+            }
+
+            // Filter elements that fall within relevant chunks
+            Ok(Box::new((0..values.len()).filter_map(move |i| {
+                let file_row = row_indices[i] as usize;
+                let file_col = col_indices[i] as usize;
+
+                // Check if row is in any relevant chunk range
+                let in_relevant_chunk = relevant_row_ranges
+                    .iter()
+                    .any(|range| range.contains(&file_row));
+
+                if in_relevant_chunk
+                    && file_row >= start_row
+                    && file_row < end_row
+                    && file_row < self.nrows()
+                    && file_col < self.ncols()
+                {
+                    Some((file_row, file_col, &values[i]))
+                } else {
+                    None
+                }
+            })))
+        } else {
+            // Fallback to original implementation if no bloom filter
+            Ok(Box::new((0..values.len()).filter_map(move |i| {
+                let file_row = row_indices[i] as usize;
+                let file_col = col_indices[i] as usize;
+
+                if file_row >= start_row
+                    && file_row < end_row
+                    && file_row < self.nrows()
+                    && file_col < self.ncols()
+                {
+                    Some((file_row, file_col, &values[i]))
+                } else {
+                    None
+                }
+            })))
+        }
     }
 }
 
@@ -1294,19 +1372,24 @@ impl BspcFile {
         header.pointers_offset = 0; // Not used for COO
         header.pointers_size = 0;
 
-        // Create bloom filter (mandatory for all matrices)
-        use bspc_core::bloom_filter::BloomFilter;
-        let mut bloom_filter = BloomFilter::<32>::with_hash_count(config.bloom_hash_count);
+        // Create chunk-level bloom filter (mandatory for all matrices)
+        use crate::chunk_bloom_filter::ChunkBloomFilter;
+        let mut chunk_bloom_filter = ChunkBloomFilter::with_hash_count(
+            nrows,
+            config.chunk_size(),
+            config.bloom_hash_count,
+        );
 
-        // Insert all row indices into the bloom filter
+        // Insert all row indices into the chunk bloom filter
         for &(row, _, _) in sparse_elements {
-            bloom_filter.insert(row);
+            chunk_bloom_filter.insert(row);
         }
 
         println!(
-            "Created bloom filter with {} hash functions for {} rows",
-            bloom_filter.hash_count(),
-            nrows
+            "Created chunk bloom filter with {} hash functions for {} rows, chunk size: {}",
+            config.bloom_hash_count,
+            nrows,
+            config.chunk_size()
         );
 
         // Write header
@@ -1373,15 +1456,41 @@ impl BspcFile {
                 .map_err(|_| Error::IoError("Failed to write column indices"))?;
         }
 
+        // Write chunk bloom filter after all matrix data
+        let chunk_bloom_filter_offset = file
+            .stream_position()
+            .map_err(|_| Error::IoError("Failed to get file position"))?;
+
+        let chunk_bloom_filter_data = chunk_bloom_filter.serialize();
+        file.write_all(&chunk_bloom_filter_data)
+            .map_err(|_| Error::IoError("Failed to write chunk bloom filter"))?;
+
+        // Update header with chunk bloom filter location
+        header.set_chunk_bloom_filter_region(
+            chunk_bloom_filter_offset,
+            chunk_bloom_filter_data.len() as u64,
+        );
+
+        // Rewrite the header with chunk bloom filter information
+        file.seek(std::io::SeekFrom::Start(0))
+            .map_err(|_| Error::IoError("Failed to seek to header"))?;
+
+        let header_bytes = unsafe {
+            std::slice::from_raw_parts(&header as *const BspcHeader as *const u8, BspcHeader::SIZE)
+        };
+        file.write_all(header_bytes)
+            .map_err(|_| Error::IoError("Failed to rewrite header"))?;
+
         file.flush()
             .map_err(|_| Error::IoError("Failed to flush file"))?;
 
         println!(
-            "Written matrix {}x{} with {} non-zeros to {} (bloom filter hash count: {})",
+            "Written matrix {}x{} with {} non-zeros to {} (chunk bloom filter: {} chunks, hash count: {})",
             nrows,
             ncols,
             nnz,
             path.display(),
+            chunk_bloom_filter.num_chunks(),
             config.bloom_hash_count
         );
 

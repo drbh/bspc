@@ -17,7 +17,12 @@ impl<const N: usize> BloomFilter<N> {
         // Optimal hash function count: k = (m/n) * ln(2)
         // where m = N*8 bits, n = expected_elements
         let optimal_k = if expected_elements > 0 {
-            ((N as f64 * 8.0 / expected_elements as f64) * core::f64::consts::LN_2).ceil() as u8
+            // Calculate optimal hash count: k = (m/n) * ln(2)
+            // Using integer approximation: ln(2) ≈ 0.693 ≈ 693/1000
+            let m = N * 8; // Total bits
+            let k_times_1000 = (m * 693) / expected_elements; // k * 1000
+            let k = (k_times_1000 + 999) / 1000; // Ceiling division
+            k as u8
         } else {
             3
         };
@@ -79,6 +84,16 @@ impl<const N: usize> BloomFilter<N> {
     /// Get the number of bits in the filter
     pub const fn bit_count() -> usize {
         N * 8
+    }
+
+    /// Get the bits array (for serialization)
+    pub fn bits(&self) -> &[u8; N] {
+        &self.bits
+    }
+
+    /// Create a bloom filter from raw bits and hash count (for deserialization)
+    pub fn from_bits(bits: [u8; N], hash_count: u8) -> Self {
+        Self { bits, hash_count }
     }
 
     /// Fast hash function combining FNV-1a with seed

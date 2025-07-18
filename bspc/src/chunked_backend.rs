@@ -40,13 +40,15 @@ impl<T: binsparse_rs::backend::StorageBackend> ChunkableMatrix for binsparse_rs:
     }
 }
 
-/// Configuration for chunked processing with mandatory bloom filters
+/// Configuration for chunked processing with chunk-level bloom filters
 #[derive(Debug, Clone)]
 pub struct ChunkConfig {
     /// Maximum memory usage per chunk in MB
     pub memory_limit_mb: usize,
     /// Number of hash functions for bloom filters
     pub bloom_hash_count: u8,
+    /// Size of each chunk in rows for bloom filtering
+    pub chunk_size: usize,
 }
 
 impl ChunkConfig {
@@ -55,6 +57,7 @@ impl ChunkConfig {
         Self {
             memory_limit_mb,
             bloom_hash_count: 3,
+            chunk_size: 100_000, // Default 100K rows per chunk
         }
     }
 
@@ -64,15 +67,36 @@ impl ChunkConfig {
         self
     }
 
-    /// Set chunk size (compatibility method)
-    pub fn with_chunk_size(self, _chunk_size_bytes: usize) -> Self {
-        // Ignore chunk size for now, use memory limit instead
+    /// Set chunk size in rows for bloom filtering
+    pub fn with_chunk_size(mut self, chunk_size: usize) -> Self {
+        self.chunk_size = chunk_size;
         self
+    }
+
+    /// Get chunk size in rows
+    pub fn chunk_size(&self) -> usize {
+        self.chunk_size
     }
 
     /// Get chunk size in bytes (compatibility property)
     pub fn chunk_size_bytes(&self) -> usize {
         self.memory_limit_mb * 1024 * 1024
+    }
+
+    /// Calculate optimal chunk size based on matrix characteristics
+    pub fn optimal_chunk_size(matrix_rows: usize, nnz: usize, typical_query_size: usize) -> usize {
+        let density = nnz as f64 / matrix_rows as f64;
+        let base_chunk_size = typical_query_size.max(1000) * 2; // At least 2x typical query, minimum 2000
+
+        if density < 0.01 {
+            // Very sparse - use smaller chunks for better filtering
+            base_chunk_size.min(50_000)
+        } else if density > 0.1 {
+            // Dense - larger chunks are fine
+            base_chunk_size.max(200_000)
+        } else {
+            base_chunk_size.clamp(50_000, 200_000)
+        }
     }
 }
 
@@ -81,6 +105,7 @@ impl Default for ChunkConfig {
         Self {
             memory_limit_mb: 128,
             bloom_hash_count: 3,
+            chunk_size: 100_000,
         }
     }
 }
