@@ -21,7 +21,7 @@ impl<const N: usize> BloomFilter<N> {
             // Using integer approximation: ln(2) ≈ 0.693 ≈ 693/1000
             let m = N * 8; // Total bits
             let k_times_1000 = (m * 693) / expected_elements; // k * 1000
-            let k = (k_times_1000 + 999) / 1000; // Ceiling division
+            let k = k_times_1000.div_ceil(1000); // Ceiling division
             k as u8
         } else {
             3

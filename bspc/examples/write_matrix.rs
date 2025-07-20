@@ -1,11 +1,12 @@
-//! Fast streaming write example for large sparse matrices with bloom filter optimization
+//! Fast async write example for large sparse matrices with bloom filter optimization
 
 use binsparse_rs::prelude::*;
 use bspc::{BspcFile, ChunkConfig};
 use std::time::Instant;
 
-fn main() -> Result<()> {
-    println!("Writing large sparse matrix using streaming approach...");
+#[tokio::main]
+async fn main() -> Result<()> {
+    println!("Writing large sparse matrix using high-performance async approach...");
 
     // Matrix dimensions - reasonable size for testing
     let nrows = 100_000_000;
@@ -29,16 +30,17 @@ fn main() -> Result<()> {
     let build_time = start.elapsed();
     println!("Built sparse elements in {build_time:?}");
 
-    // Write using streaming approach WITH bloom filters built during write (SUPER FAST!)
+    // Write using async approach WITH bloom filters built during write (SUPER FAST!)
     let start = Instant::now();
     let config = ChunkConfig::default().with_bloom_hash_count(3);
-    BspcFile::write_sparse_matrix_streaming(
+    BspcFile::write_sparse_matrix(
         nrows,
         ncols,
         &sparse_elements,
         config.clone(),
         "example_matrix.bspc",
-    )?;
+    )
+    .await?;
     let write_time = start.elapsed();
     println!("Matrix + bloom filters written in {write_time:?}");
     println!("\nRun 'cargo run --example read_matrix' to read it back!");

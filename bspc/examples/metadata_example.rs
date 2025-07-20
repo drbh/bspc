@@ -5,7 +5,8 @@
 
 use bspc::{chunked_backend::ChunkConfig, mmap_backend::BspcFile};
 
-fn main() -> Result<(), binsparse_rs::Error> {
+#[tokio::main]
+async fn main() -> Result<(), binsparse_rs::Error> {
     // Create test data
     let sparse_elements = vec![
         (0, 0, 1.0_f64),
@@ -36,7 +37,6 @@ fn main() -> Result<(), binsparse_rs::Error> {
     let config = ChunkConfig::default();
 
     // Write matrix with metadata
-    println!("Writing matrix with metadata...");
     BspcFile::write_sparse_matrix_with_labels(
         3, // nrows
         3, // ncols
@@ -46,10 +46,10 @@ fn main() -> Result<(), binsparse_rs::Error> {
         32, // label_stride
         config.clone(),
         filename,
-    )?;
+    )
+    .await?;
 
     // Read the matrix back
-    println!("Reading matrix with metadata...");
     let chunked_matrix = BspcFile::read_matrix_with_bloom_filter(filename, config)?;
     let matrix = chunked_matrix.matrix();
 
@@ -63,8 +63,6 @@ fn main() -> Result<(), binsparse_rs::Error> {
 
         // Test structured metadata access
         if let Some(metadata_view) = matrix.metadata_view()? {
-            println!("Structured metadata found");
-
             // Test row labels
             println!("Row labels:");
             let row_labels_array = metadata_view.row_labels_array()?;
@@ -102,7 +100,6 @@ fn main() -> Result<(), binsparse_rs::Error> {
     }
 
     // Test direct label access through matrix
-    println!("Direct label access:");
     if let Some(row_0_label) = matrix.row_label(0)? {
         let label_str = std::str::from_utf8(row_0_label)
             .unwrap_or("<invalid utf8>")

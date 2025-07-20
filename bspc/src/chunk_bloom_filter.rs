@@ -4,6 +4,8 @@
 //! of sparse matrix data when they don't contain elements in the requested range.
 
 use bspc_core::bloom_filter::BloomFilter64;
+use rayon::prelude::*;
+use std::sync::Mutex;
 use std::vec::Vec;
 
 /// Chunk-level bloom filter for efficient sparse matrix access
@@ -22,6 +24,7 @@ impl ChunkBloomFilter {
     pub fn new(total_rows: usize, chunk_size: usize) -> Self {
         let num_chunks = total_rows.div_ceil(chunk_size);
         let chunk_filters = (0..num_chunks)
+            .into_par_iter()
             .map(|_| BloomFilter64::new(chunk_size))
             .collect();
 
@@ -36,6 +39,7 @@ impl ChunkBloomFilter {
     pub fn with_hash_count(total_rows: usize, chunk_size: usize, hash_count: u8) -> Self {
         let num_chunks = total_rows.div_ceil(chunk_size);
         let chunk_filters = (0..num_chunks)
+            .into_par_iter()
             .map(|_| BloomFilter64::with_hash_count(hash_count))
             .collect();
 
@@ -54,34 +58,71 @@ impl ChunkBloomFilter {
         }
     }
 
+    /// Fast bulk insert using rayon with minimal allocations
+    pub fn bulk_insert_sorted(&mut self, sorted_rows: &[usize]) {
+        if sorted_rows.is_empty() {
+            return;
+        }
+
+        // Use atomic counters to partition work by chunk without Vec allocations
+        use std::sync::atomic::AtomicUsize;
+
+        // Create atomic indices for each chunk to track processing ranges
+        let chunk_indices: Vec<AtomicUsize> = (0..self.chunk_filters.len())
+            .map(|_| AtomicUsize::new(0))
+            .collect();
+
+        // Process rows in parallel chunks, each thread works on a portion
+        let num_threads = rayon::current_num_threads();
+        let chunk_size = sorted_rows.len().div_ceil(num_threads);
+
+        // Use rayon's parallel iteration over the filters themselves
+        self.chunk_filters
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(chunk_idx, filter)| {
+                let chunk_start = chunk_idx * self.chunk_size;
+                let chunk_end = (chunk_idx + 1) * self.chunk_size;
+
+                // Find relevant rows for this chunk using binary search
+                let start_pos = sorted_rows.partition_point(|&row| row < chunk_start);
+                let end_pos = sorted_rows.partition_point(|&row| row < chunk_end);
+
+                // Insert all rows for this chunk
+                for &row in &sorted_rows[start_pos..end_pos] {
+                    filter.insert(row % self.chunk_size);
+                }
+            });
+    }
+
     /// Check if a row range might contain data
     pub fn may_contain_range(&self, start_row: usize, end_row: usize) -> Vec<usize> {
         let start_chunk = start_row / self.chunk_size;
         let end_chunk = end_row.saturating_sub(1) / self.chunk_size;
 
-        let mut relevant_chunks = Vec::new();
-        for chunk_idx in start_chunk..=end_chunk {
-            if chunk_idx >= self.chunk_filters.len() {
-                break;
-            }
+        let chunk_range: Vec<usize> = (start_chunk..=end_chunk)
+            .filter(|&chunk_idx| chunk_idx < self.chunk_filters.len())
+            .collect();
 
-            let filter = &self.chunk_filters[chunk_idx];
-            let chunk_start = chunk_idx * self.chunk_size;
-            let chunk_end = ((chunk_idx + 1) * self.chunk_size).min(self.total_rows);
+        chunk_range
+            .into_par_iter()
+            .filter_map(|chunk_idx| {
+                let filter = &self.chunk_filters[chunk_idx];
+                let chunk_start = chunk_idx * self.chunk_size;
+                let chunk_end = ((chunk_idx + 1) * self.chunk_size).min(self.total_rows);
 
-            // Check if any row in the intersecting range might exist
-            let range_start = start_row.max(chunk_start);
-            let range_end = end_row.min(chunk_end);
+                // Check if any row in the intersecting range might exist
+                let range_start = start_row.max(chunk_start);
+                let range_end = end_row.min(chunk_end);
 
-            for row in range_start..range_end {
-                if filter.contains(row % self.chunk_size) {
-                    relevant_chunks.push(chunk_idx);
-                    break;
+                for row in range_start..range_end {
+                    if filter.contains(row % self.chunk_size) {
+                        return Some(chunk_idx);
+                    }
                 }
-            }
-        }
-
-        relevant_chunks
+                None
+            })
+            .collect()
     }
 
     /// Check if a specific row might contain data
@@ -113,20 +154,35 @@ impl ChunkBloomFilter {
 
     /// Serialize the chunk bloom filter
     pub fn serialize(&self) -> Vec<u8> {
-        let mut buffer = Vec::with_capacity(self.serialized_size());
+        let buffer = Mutex::new(Vec::with_capacity(self.serialized_size()));
 
         // Write metadata
-        buffer.extend_from_slice(&(self.chunk_size as u32).to_le_bytes());
-        buffer.extend_from_slice(&(self.total_rows as u32).to_le_bytes());
-        buffer.extend_from_slice(&(self.chunk_filters.len() as u32).to_le_bytes());
-
-        // Write each chunk filter
-        for filter in &self.chunk_filters {
-            buffer.push(filter.hash_count());
-            buffer.extend_from_slice(filter.bits());
+        {
+            let mut buf = buffer.lock().unwrap();
+            buf.extend_from_slice(&(self.chunk_size as u32).to_le_bytes());
+            buf.extend_from_slice(&(self.total_rows as u32).to_le_bytes());
+            buf.extend_from_slice(&(self.chunk_filters.len() as u32).to_le_bytes());
         }
 
-        buffer
+        // Parallel serialization of chunk filters
+        let chunk_data: Vec<_> = self
+            .chunk_filters
+            .par_iter()
+            .map(|filter| {
+                let mut chunk_bytes = Vec::with_capacity(9);
+                chunk_bytes.push(filter.hash_count());
+                chunk_bytes.extend_from_slice(filter.bits());
+                chunk_bytes
+            })
+            .collect();
+
+        // Sequential append to maintain order
+        let mut buf = buffer.into_inner().unwrap();
+        for chunk_bytes in chunk_data {
+            buf.extend_from_slice(&chunk_bytes);
+        }
+
+        buf
     }
 
     /// Deserialize a chunk bloom filter

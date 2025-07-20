@@ -3,9 +3,11 @@
 //! This module defines the core data structures and binary format
 //! specifications for .bspc files.
 
+#[cfg(feature = "alloc")]
+use alloc::vec::Vec;
 use core::mem::size_of;
 
-/// Fixed-size header for .bspc files
+/// Standard header for .bspc files (u64 based, supports large datasets)
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -20,30 +22,38 @@ pub struct BspcHeader {
     pub data_type: u8,
     /// Structure flags (symmetric, upper_tri, etc.)
     pub structure_flags: u8,
-    /// Number of rows
-    pub nrows: u32,
-    /// Number of columns
-    pub ncols: u32,
-    /// Number of non-zero elements
-    pub nnz: u32,
-    /// Offset to values array
-    pub values_offset: u32,
-    /// Size of values array in bytes
-    pub values_size: u32,
-    /// Offset to first index array
-    pub indices_0_offset: u32,
-    /// Size of first index array in bytes
-    pub indices_0_size: u32,
-    /// Offset to second index array (if applicable)
-    pub indices_1_offset: u32,
-    /// Size of second index array in bytes
-    pub indices_1_size: u32,
-    /// Offset to pointers array (for CSR/CSC)
-    pub pointers_offset: u32,
-    /// Size of pointers array in bytes
-    pub pointers_size: u32,
-    /// Reserved bytes for future use
-    pub reserved: [u8; 16],
+    /// Number of rows (u64 for large matrices)
+    pub nrows: u64,
+    /// Number of columns (u64 for large matrices)
+    pub ncols: u64,
+    /// Number of non-zero elements (u64 for large datasets)
+    pub nnz: u64,
+    /// Offset to values array (u64 for large files)
+    pub values_offset: u64,
+    /// Size of values array in bytes (u64 for large arrays)
+    pub values_size: u64,
+    /// Offset to first index array (u64 for large files)
+    pub indices_0_offset: u64,
+    /// Size of first index array in bytes (u64 for large arrays)
+    pub indices_0_size: u64,
+    /// Offset to second index array (u64 for large files)
+    pub indices_1_offset: u64,
+    /// Size of second index array in bytes (u64 for large arrays)
+    pub indices_1_size: u64,
+    /// Offset to pointers array (u64 for large files)
+    pub pointers_offset: u64,
+    /// Size of pointers array in bytes (u64 for large arrays)
+    pub pointers_size: u64,
+    /// Offset to metadata region (u64)
+    pub metadata_offset: u64,
+    /// Size of metadata region in bytes (u64)
+    pub metadata_size: u64,
+    /// Offset to chunk bloom filter region (u64)
+    pub bloom_filter_offset: u64,
+    /// Size of chunk bloom filter region in bytes (u64)
+    pub bloom_filter_size: u64,
+    /// Reserved bytes for future extensions
+    pub reserved: [u8; 32],
 }
 
 impl BspcHeader {
@@ -75,53 +85,72 @@ impl BspcHeader {
             indices_1_size: 0,
             pointers_offset: 0,
             pointers_size: 0,
-            reserved: [0; 16],
+            metadata_offset: 0,
+            metadata_size: 0,
+            bloom_filter_offset: 0,
+            bloom_filter_size: 0,
+            reserved: [0; 32],
         }
     }
 
-    /// Validate the header magic and version
-    pub fn is_valid(&self) -> bool {
-        self.magic == Self::MAGIC && self.version <= Self::VERSION
-    }
-
-    /// Get metadata region offset and size from reserved bytes
-    /// Returns None if no metadata is present (offset or size is 0)
+    /// Get metadata region offset and size
     pub fn metadata_region(&self) -> Option<(u64, u64)> {
-        let offset = u64::from_le_bytes(self.reserved[0..8].try_into().unwrap_or([0; 8]));
-        let size = u64::from_le_bytes(self.reserved[8..16].try_into().unwrap_or([0; 8]));
-
-        if offset == 0 || size == 0 {
+        if self.metadata_offset == 0 || self.metadata_size == 0 {
             None
         } else {
-            Some((offset, size))
+            Some((self.metadata_offset, self.metadata_size))
         }
     }
 
-    /// Get chunk bloom filter region offset and size from reserved bytes
-    /// Returns None if no chunk bloom filter is present (offset or size is 0)
+    /// Get chunk bloom filter region offset and size
     pub fn chunk_bloom_filter_region(&self) -> Option<(u64, u64)> {
-        // Use reserved bytes for chunk bloom filter: bytes 0-7 for offset, 8-15 for size
-        // This overlaps with metadata_region but chunk bloom filters take precedence
-        let offset = u64::from_le_bytes(self.reserved[0..8].try_into().unwrap_or([0; 8]));
-        let size = u64::from_le_bytes(self.reserved[8..16].try_into().unwrap_or([0; 8]));
-
-        if offset == 0 || size == 0 {
+        if self.bloom_filter_offset == 0 || self.bloom_filter_size == 0 {
             None
         } else {
-            Some((offset, size))
+            Some((self.bloom_filter_offset, self.bloom_filter_size))
         }
     }
 
-    /// Set metadata region offset and size in reserved bytes
-    pub fn set_metadata_region(&mut self, offset: u64, size: u64) {
-        self.reserved[0..8].copy_from_slice(&offset.to_le_bytes());
-        self.reserved[8..16].copy_from_slice(&size.to_le_bytes());
+    /// Set chunk bloom filter region offset and size
+    pub fn set_chunk_bloom_filter_region(&mut self, offset: u64, size: u64) {
+        self.bloom_filter_offset = offset;
+        self.bloom_filter_size = size;
     }
 
-    /// Set chunk bloom filter region offset and size in reserved bytes
-    pub fn set_chunk_bloom_filter_region(&mut self, offset: u64, size: u64) {
-        self.reserved[0..8].copy_from_slice(&offset.to_le_bytes());
-        self.reserved[8..16].copy_from_slice(&size.to_le_bytes());
+    /// Set metadata region offset and size
+    pub fn set_metadata_region(&mut self, offset: u64, size: u64) {
+        self.metadata_offset = offset;
+        self.metadata_size = size;
+    }
+
+    /// Validate header structure integrity
+    pub fn is_valid(&self) -> bool {
+        // Check magic bytes
+        if self.magic != Self::MAGIC {
+            return false;
+        }
+
+        // Check version
+        if self.version != Self::VERSION {
+            return false;
+        }
+
+        // Basic sanity checks on dimensions
+        if self.nrows == 0 || self.ncols == 0 {
+            return false;
+        }
+
+        // Check that nnz doesn't exceed matrix capacity
+        if let Some(max_elements) = self.nrows.checked_mul(self.ncols) {
+            if self.nnz > max_elements {
+                return false;
+            }
+        } else {
+            // Overflow in matrix dimensions
+            return false;
+        }
+
+        true
     }
 
     /// Safely read header from bytes with validation
@@ -135,7 +164,7 @@ impl BspcHeader {
             return Err(crate::error::BspcError::InvalidHeader);
         }
 
-        // Read fields one by one to avoid unsafe pointer casting
+        // Read header fields
         let mut header = Self::new();
         header.magic.copy_from_slice(&bytes[0..4]);
         header.version = bytes[4];
@@ -143,21 +172,39 @@ impl BspcHeader {
         header.data_type = bytes[6];
         header.structure_flags = bytes[7];
 
-        // Read u32 fields in little-endian format
-        header.nrows = u32::from_le_bytes([bytes[8], bytes[9], bytes[10], bytes[11]]);
-        header.ncols = u32::from_le_bytes([bytes[12], bytes[13], bytes[14], bytes[15]]);
-        header.nnz = u32::from_le_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
-        header.values_offset = u32::from_le_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
-        header.values_size = u32::from_le_bytes([bytes[24], bytes[25], bytes[26], bytes[27]]);
-        header.indices_0_offset = u32::from_le_bytes([bytes[28], bytes[29], bytes[30], bytes[31]]);
-        header.indices_0_size = u32::from_le_bytes([bytes[32], bytes[33], bytes[34], bytes[35]]);
-        header.indices_1_offset = u32::from_le_bytes([bytes[36], bytes[37], bytes[38], bytes[39]]);
-        header.indices_1_size = u32::from_le_bytes([bytes[40], bytes[41], bytes[42], bytes[43]]);
-        header.pointers_offset = u32::from_le_bytes([bytes[44], bytes[45], bytes[46], bytes[47]]);
-        header.pointers_size = u32::from_le_bytes([bytes[48], bytes[49], bytes[50], bytes[51]]);
+        // Helper to read u64 from bytes
+        let read_u64 = |offset: usize| -> u64 {
+            u64::from_le_bytes([
+                bytes[offset],
+                bytes[offset + 1],
+                bytes[offset + 2],
+                bytes[offset + 3],
+                bytes[offset + 4],
+                bytes[offset + 5],
+                bytes[offset + 6],
+                bytes[offset + 7],
+            ])
+        };
+
+        // Read u64 fields
+        header.nrows = read_u64(8);
+        header.ncols = read_u64(16);
+        header.nnz = read_u64(24);
+        header.values_offset = read_u64(32);
+        header.values_size = read_u64(40);
+        header.indices_0_offset = read_u64(48);
+        header.indices_0_size = read_u64(56);
+        header.indices_1_offset = read_u64(64);
+        header.indices_1_size = read_u64(72);
+        header.pointers_offset = read_u64(80);
+        header.pointers_size = read_u64(88);
+        header.metadata_offset = read_u64(96);
+        header.metadata_size = read_u64(104);
+        header.bloom_filter_offset = read_u64(112);
+        header.bloom_filter_size = read_u64(120);
 
         // Copy reserved bytes
-        header.reserved.copy_from_slice(&bytes[52..68]);
+        header.reserved.copy_from_slice(&bytes[128..160]);
 
         // Validate the header structure
         if !header.is_valid() {
@@ -170,11 +217,12 @@ impl BspcHeader {
         }
 
         // Check for potential integer overflow in matrix size
-        let total_elements = (header.nrows as u64)
-            .checked_mul(header.ncols as u64)
+        let total_elements = header
+            .nrows
+            .checked_mul(header.ncols)
             .ok_or(crate::error::BspcError::InvalidHeader)?;
 
-        if header.nnz as u64 > total_elements {
+        if header.nnz > total_elements {
             return Err(crate::error::BspcError::CorruptedData);
         }
 
@@ -185,6 +233,39 @@ impl BspcHeader {
 impl Default for BspcHeader {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl BspcHeader {
+    /// Convert header to bytes for writing to file
+    #[cfg(feature = "alloc")]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(Self::SIZE);
+
+        bytes.extend_from_slice(&self.magic);
+        bytes.push(self.version);
+        bytes.push(self.format_type);
+        bytes.push(self.data_type);
+        bytes.push(self.structure_flags);
+
+        bytes.extend_from_slice(&self.nrows.to_le_bytes());
+        bytes.extend_from_slice(&self.ncols.to_le_bytes());
+        bytes.extend_from_slice(&self.nnz.to_le_bytes());
+        bytes.extend_from_slice(&self.values_offset.to_le_bytes());
+        bytes.extend_from_slice(&self.values_size.to_le_bytes());
+        bytes.extend_from_slice(&self.indices_0_offset.to_le_bytes());
+        bytes.extend_from_slice(&self.indices_0_size.to_le_bytes());
+        bytes.extend_from_slice(&self.indices_1_offset.to_le_bytes());
+        bytes.extend_from_slice(&self.indices_1_size.to_le_bytes());
+        bytes.extend_from_slice(&self.pointers_offset.to_le_bytes());
+        bytes.extend_from_slice(&self.pointers_size.to_le_bytes());
+        bytes.extend_from_slice(&self.metadata_offset.to_le_bytes());
+        bytes.extend_from_slice(&self.metadata_size.to_le_bytes());
+        bytes.extend_from_slice(&self.bloom_filter_offset.to_le_bytes());
+        bytes.extend_from_slice(&self.bloom_filter_size.to_le_bytes());
+        bytes.extend_from_slice(&self.reserved);
+
+        bytes
     }
 }
 

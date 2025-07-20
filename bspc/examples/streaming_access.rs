@@ -140,7 +140,6 @@ fn main() -> binsparse_rs::Result<()> {
         "Metadata overhead: {:.1}%",
         (metadata_time.as_secs_f64() / total_time.as_secs_f64()) * 100.0
     );
-    println!("Ready for production streaming workloads!");
 
     Ok(())
 }

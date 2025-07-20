@@ -141,6 +141,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "memmap2",
  "rand",
+ "rayon",
  "reqwest",
  "serde",
  "serde_json",
