@@ -3,12 +3,12 @@
 //! This module defines all trait abstractions used in the BSPC ecosystem.
 //! Traits are pure interfaces - no concrete implementations.
 
-pub mod matrix;
-pub mod element;
 pub mod backend;
+pub mod element;
+pub mod matrix;
 
-pub use matrix::SparseMatrix;
+pub use backend::{ChunkProcessor, Chunkable, StorageBackend};
+pub use element::MatrixElement;
 #[cfg(feature = "alloc")]
 pub use matrix::MatrixOperations;
-pub use element::MatrixElement;
-pub use backend::{StorageBackend, ChunkProcessor, Chunkable};
+pub use matrix::SparseMatrix;

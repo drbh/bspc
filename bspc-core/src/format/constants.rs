@@ -13,13 +13,13 @@ pub const MAX_CHUNK_COUNT: usize = 1_000_000;
 pub mod metadata {
     /// Magic bytes for metadata section
     pub const MAGIC: [u8; 4] = *b"META";
-    
+
     /// Current metadata format version
     pub const VERSION: u8 = 1;
-    
+
     /// Fixed size of metadata header
     pub const HEADER_SIZE: usize = 40;
-    
+
     /// Fixed size of label array header
     pub const LABEL_ARRAY_HEADER_SIZE: usize = 8;
 }

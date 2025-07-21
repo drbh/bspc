@@ -68,7 +68,8 @@ async fn main() -> Result<(), binsparse_rs::Error> {
             if let Some(row_labels_array) = metadata_view.row_labels_array()? {
                 println!(
                     "  Count: {}, Stride: {}",
-                    row_labels_array.count(), row_labels_array.stride()
+                    row_labels_array.count(),
+                    row_labels_array.stride()
                 );
 
                 for i in 0..row_labels_array.count() {
@@ -88,7 +89,8 @@ async fn main() -> Result<(), binsparse_rs::Error> {
             if let Some(col_labels_array) = metadata_view.col_labels_array()? {
                 println!(
                     "  Count: {}, Stride: {}",
-                    col_labels_array.count(), col_labels_array.stride()
+                    col_labels_array.count(),
+                    col_labels_array.stride()
                 );
 
                 for i in 0..col_labels_array.count() {

@@ -127,7 +127,10 @@ impl<M: SparseMatrix> ChunkedMatrix<M> {
 
     /// Create from file (compatibility method)
     #[cfg(feature = "mmap")]
-    pub fn from_file<T: crate::mmap_backend::MatrixElement + bspc_core::MatrixElement, P: AsRef<std::path::Path>>(
+    pub fn from_file<
+        T: crate::mmap_backend::MatrixElement + bspc_core::MatrixElement,
+        P: AsRef<std::path::Path>,
+    >(
         path: P,
         config: ChunkConfig,
     ) -> Result<ChunkedMatrix<crate::mmap_backend::MmapMatrix<T>>> {

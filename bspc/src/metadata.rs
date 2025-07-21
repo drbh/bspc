@@ -28,9 +28,10 @@ impl<'a> LabelArray<'a> {
             return Err(Error::InvalidState("Label index out of bounds"));
         }
 
-        let start = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE + (index as usize * self.header.stride as usize);
+        let start = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE
+            + (index as usize * self.header.stride as usize);
         let end = start + self.header.stride as usize;
-        
+
         if end > self.data.len() {
             return Err(Error::InvalidState("Label extends beyond data"));
         }
@@ -71,7 +72,7 @@ impl<'a> MetadataView<'a> {
 
         let start = self.header.row_labels_offset as usize;
         let end = start + self.header.row_labels_size as usize;
-        
+
         if end > self.data.len() {
             return Err(Error::InvalidState("Row labels extend beyond metadata"));
         }
@@ -87,7 +88,7 @@ impl<'a> MetadataView<'a> {
 
         let start = self.header.col_labels_offset as usize;
         let end = start + self.header.col_labels_size as usize;
-        
+
         if end > self.data.len() {
             return Err(Error::InvalidState("Column labels extend beyond metadata"));
         }
@@ -103,32 +104,43 @@ impl<'a> MetadataView<'a> {
 
         let labels_start = self.header.row_labels_offset as usize;
         let labels_end = labels_start + self.header.row_labels_size as usize;
-        
+
         if labels_end > self.data.len() {
             return Err(Error::InvalidState("Row labels extend beyond metadata"));
         }
 
         let labels_data = &self.data[labels_start..labels_end];
-        
+
         // Parse header manually to avoid lifetime issues
         if labels_data.len() < bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE {
             return Err(Error::InvalidState("Invalid label array header"));
         }
-        
-        let count = u32::from_le_bytes([labels_data[0], labels_data[1], labels_data[2], labels_data[3]]);
-        let stride = u32::from_le_bytes([labels_data[4], labels_data[5], labels_data[6], labels_data[7]]);
-        
+
+        let count = u32::from_le_bytes([
+            labels_data[0],
+            labels_data[1],
+            labels_data[2],
+            labels_data[3],
+        ]);
+        let stride = u32::from_le_bytes([
+            labels_data[4],
+            labels_data[5],
+            labels_data[6],
+            labels_data[7],
+        ]);
+
         if index >= count {
             return Err(Error::InvalidState("Label index out of bounds"));
         }
-        
-        let label_start = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE + (index as usize * stride as usize);
+
+        let label_start = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE
+            + (index as usize * stride as usize);
         let label_end = label_start + stride as usize;
-        
+
         if label_end > labels_data.len() {
             return Err(Error::InvalidState("Label extends beyond data"));
         }
-        
+
         Ok(Some(&labels_data[label_start..label_end]))
     }
 
@@ -140,32 +152,43 @@ impl<'a> MetadataView<'a> {
 
         let labels_start = self.header.col_labels_offset as usize;
         let labels_end = labels_start + self.header.col_labels_size as usize;
-        
+
         if labels_end > self.data.len() {
             return Err(Error::InvalidState("Column labels extend beyond metadata"));
         }
 
         let labels_data = &self.data[labels_start..labels_end];
-        
+
         // Parse header manually to avoid lifetime issues
         if labels_data.len() < bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE {
             return Err(Error::InvalidState("Invalid label array header"));
         }
-        
-        let count = u32::from_le_bytes([labels_data[0], labels_data[1], labels_data[2], labels_data[3]]);
-        let stride = u32::from_le_bytes([labels_data[4], labels_data[5], labels_data[6], labels_data[7]]);
-        
+
+        let count = u32::from_le_bytes([
+            labels_data[0],
+            labels_data[1],
+            labels_data[2],
+            labels_data[3],
+        ]);
+        let stride = u32::from_le_bytes([
+            labels_data[4],
+            labels_data[5],
+            labels_data[6],
+            labels_data[7],
+        ]);
+
         if index >= count {
             return Err(Error::InvalidState("Label index out of bounds"));
         }
-        
-        let label_start = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE + (index as usize * stride as usize);
+
+        let label_start = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE
+            + (index as usize * stride as usize);
         let label_end = label_start + stride as usize;
-        
+
         if label_end > labels_data.len() {
             return Err(Error::InvalidState("Label extends beyond data"));
         }
-        
+
         Ok(Some(&labels_data[label_start..label_end]))
     }
 
@@ -210,11 +233,11 @@ impl MetadataBuilder {
     /// Build metadata bytes
     pub fn build(&self) -> Result<Vec<u8>> {
         let mut result = Vec::new();
-        
+
         // Calculate offsets
         let header_size = bspc_core::format::constants::metadata::HEADER_SIZE;
         let mut current_offset = header_size as u64;
-        
+
         let (row_labels_offset, row_labels_size) = if let Some(ref labels) = self.row_labels {
             let offset = current_offset;
             let size = self.calculate_label_array_size(labels)?;
@@ -223,7 +246,7 @@ impl MetadataBuilder {
         } else {
             (0, 0)
         };
-        
+
         let (col_labels_offset, col_labels_size) = if let Some(ref labels) = self.col_labels {
             let offset = current_offset;
             let size = self.calculate_label_array_size(labels)?;
@@ -262,8 +285,9 @@ impl MetadataBuilder {
 
         let max_len = labels.iter().map(|l| l.len()).max().unwrap_or(0);
         let stride = max_len.next_power_of_two().max(4); // At least 4 bytes, power of 2
-        let total_size = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE + (labels.len() * stride);
-        
+        let total_size = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE
+            + (labels.len() * stride);
+
         Ok(total_size as u64)
     }
 

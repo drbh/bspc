@@ -7,6 +7,6 @@ pub mod bounds;
 pub mod format;
 pub mod parsing;
 
-pub use bounds::{validate_array_bounds, validate_alignment};
+pub use bounds::{validate_alignment, validate_array_bounds};
 pub use format::align_to_boundary;
 pub use parsing::parse_range;

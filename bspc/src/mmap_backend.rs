@@ -17,5 +17,7 @@ pub(crate) mod mmap_core;
 
 // Re-export main public types
 pub use file_io::BspcFile;
-pub use matrix_operations::{DynamicElement, DynamicMatrix, DynamicMatrixRowIterator, SubmatrixView};
+pub use matrix_operations::{
+    DynamicElement, DynamicMatrix, DynamicMatrixRowIterator, SubmatrixView,
+};
 pub use mmap_core::{MatrixElement, MmapMatrix};

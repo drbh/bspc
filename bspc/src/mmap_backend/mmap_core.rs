@@ -83,7 +83,7 @@ fn create_u32_slice(bytes: &[u8]) -> Result<&[u32]> {
 }
 
 /// Local trait for mmap-specific matrix element operations
-/// 
+///
 /// This trait provides mmap-specific functionality like ArrayValue conversion
 /// and byte serialization that builds on top of bspc_core::MatrixElement.
 pub trait MatrixElement: bspc_core::MatrixElement + Send + Sync + 'static {
@@ -235,7 +235,10 @@ impl<T: MatrixElement> MmapMatrix<T> {
             row_indices_len: 0,
             col_indices: std::ptr::null(),
             col_indices_len: 0,
-            chunk_bloom_filter: crate::chunk_bloom_filter::ChunkBloomFilter::new(header.nrows as usize, 100_000), // temporary, will be set properly
+            chunk_bloom_filter: crate::chunk_bloom_filter::ChunkBloomFilter::new(
+                header.nrows as usize,
+                100_000,
+            ), // temporary, will be set properly
             _phantom: std::marker::PhantomData,
         };
 
@@ -285,8 +288,9 @@ impl<T: MatrixElement> MmapMatrix<T> {
             bloom_filter
         } else {
             // Create bloom filter from the matrix data
-            let mut bloom_filter = crate::chunk_bloom_filter::ChunkBloomFilter::new(header.nrows as usize, 100_000);
-            
+            let mut bloom_filter =
+                crate::chunk_bloom_filter::ChunkBloomFilter::new(header.nrows as usize, 100_000);
+
             // Collect unique rows efficiently
             let mut unique_rows = Vec::new();
             let mut prev_row = None;
@@ -296,7 +300,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
                     prev_row = Some(row);
                 }
             }
-            
+
             bloom_filter.bulk_insert_sorted(&unique_rows);
             bloom_filter
         };

@@ -25,8 +25,11 @@ impl FileLayout {
         let alignment = std::mem::align_of::<T>() as u64;
 
         let values_offset = header_size.div_ceil(alignment) * alignment;
-        let values_size = (nnz as u64).checked_mul(std::mem::size_of::<T>() as u64)
-            .ok_or(Error::InvalidState("Values size calculation would overflow"))?;
+        let values_size = (nnz as u64)
+            .checked_mul(std::mem::size_of::<T>() as u64)
+            .ok_or(Error::InvalidState(
+                "Values size calculation would overflow",
+            ))?;
         let indices_0_offset = (values_offset + values_size).div_ceil(4) * 4;
         let indices_0_size = (nnz as u64).checked_mul(4).ok_or(Error::InvalidState(
             "Indices size calculation would overflow",
@@ -376,23 +379,22 @@ impl BspcFile {
         if !row_labels.is_empty() {
             // COPY: Converting label byte slices to owned vectors for metadata
             // ZERO-COPY: Could reference slices directly if metadata builder accepted &[&[u8]]
-            builder = builder
-                .with_row_labels(row_labels.iter().map(|&label| label.to_vec()).collect());
+            builder =
+                builder.with_row_labels(row_labels.iter().map(|&label| label.to_vec()).collect());
         }
 
         if !col_labels.is_empty() {
             // COPY: Converting label byte slices to owned vectors for metadata
             // ZERO-COPY: Could reference slices directly if metadata builder accepted &[&[u8]]
-            builder = builder
-                .with_col_labels(col_labels.iter().map(|&label| label.to_vec()).collect());
+            builder =
+                builder.with_col_labels(col_labels.iter().map(|&label| label.to_vec()).collect());
         }
 
         let metadata = builder.build()?;
 
         // Calculate where to append metadata after the bloom filter
-        let metadata_start = crate::metadata::align_to_8(
-            header.bloom_filter_offset + header.bloom_filter_size,
-        ) as u64;
+        let metadata_start =
+            crate::metadata::align_to_8(header.bloom_filter_offset + header.bloom_filter_size);
         let metadata_size = metadata.len() as u64;
 
         // Update header with metadata location

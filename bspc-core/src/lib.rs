@@ -4,9 +4,9 @@
 //!
 //! This crate provides the complete specification for the BSPC (Binary Sparse Matrix) format,
 //! including data layout definitions, abstract interfaces, and validation utilities.
-//! 
+//!
 //! ## Architecture
-//! 
+//!
 //! This crate serves as a pure specification layer with no I/O dependencies:
 //! - **Format definitions**: Binary layout and wire format specifications
 //! - **Abstract interfaces**: Trait definitions for implementations  

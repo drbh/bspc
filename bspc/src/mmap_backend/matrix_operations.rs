@@ -203,11 +203,11 @@ impl bspc_core::MatrixElement for DynamicElement {
     fn data_type() -> bspc_core::DataType {
         bspc_core::DataType::F64 // Default to F64
     }
-    
+
     fn from_f64(value: f64) -> Self {
         DynamicElement::F64(value)
     }
-    
+
     fn to_f64(self) -> f64 {
         match self {
             DynamicElement::F32(v) => v as f64,
@@ -236,8 +236,7 @@ impl MatrixElement for DynamicElement {
     fn from_le_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() >= 8 {
             let value = f64::from_le_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3],
-                bytes[4], bytes[5], bytes[6], bytes[7],
+                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
             ]);
             Ok(DynamicElement::F64(value))
         } else if bytes.len() >= 4 {
@@ -286,7 +285,9 @@ impl SparseMatrix for DynamicMatrix {
     type Element = DynamicElement;
 
     fn get_element(&self, row: usize, col: usize) -> Option<Self::Element> {
-        self.get_element(row, col).ok().flatten()
+        self.get_element(row, col)
+            .ok()
+            .flatten()
             .map(DynamicElement::from_array_value)
     }
 
@@ -498,7 +499,9 @@ impl<T: MatrixElement> MmapMatrix<T> {
         let col_indices = self.col_indices();
 
         // Use chunk bloom filter for efficient filtering
-        let relevant_chunks = self.chunk_bloom_filter.may_contain_range(start_row, end_row);
+        let relevant_chunks = self
+            .chunk_bloom_filter
+            .may_contain_range(start_row, end_row);
 
         // Early return if no chunks contain data in the range
         if relevant_chunks.is_empty() {
@@ -561,7 +564,8 @@ impl<T: MatrixElement> MmapMatrix<T> {
         let mut results = Vec::new();
 
         // Use chunk bloom filter to check if we should scan
-        let should_scan = !self.chunk_bloom_filter
+        let should_scan = !self
+            .chunk_bloom_filter
             .may_contain_range(start_row, end_row)
             .is_empty();
 
@@ -759,33 +763,45 @@ impl<T: MatrixElement + bspc_core::MatrixElement> SparseMatrix for MmapMatrix<T>
                 // Convert ArrayValue to T - this is a simplified conversion
                 // In practice, you'd want a more robust conversion based on the actual types
                 match array_value {
-                    ArrayValue::Float32(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() => {
+                    ArrayValue::Float32(val)
+                        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() =>
+                    {
                         // SAFETY: We've checked the type matches
                         unsafe { Some(*((&val as *const f32) as *const T)) }
-                    },
-                    ArrayValue::Float64(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() => {
+                    }
+                    ArrayValue::Float64(val)
+                        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() =>
+                    {
                         // SAFETY: We've checked the type matches
                         unsafe { Some(*((&val as *const f64) as *const T)) }
-                    },
-                    ArrayValue::Int32(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() => {
+                    }
+                    ArrayValue::Int32(val)
+                        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() =>
+                    {
                         // SAFETY: We've checked the type matches
                         unsafe { Some(*((&val as *const i32) as *const T)) }
-                    },
-                    ArrayValue::Int64(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() => {
+                    }
+                    ArrayValue::Int64(val)
+                        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() =>
+                    {
                         // SAFETY: We've checked the type matches
                         unsafe { Some(*((&val as *const i64) as *const T)) }
-                    },
-                    ArrayValue::UInt32(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() => {
+                    }
+                    ArrayValue::UInt32(val)
+                        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() =>
+                    {
                         // SAFETY: We've checked the type matches
                         unsafe { Some(*((&val as *const u32) as *const T)) }
-                    },
-                    ArrayValue::UInt64(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() => {
+                    }
+                    ArrayValue::UInt64(val)
+                        if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() =>
+                    {
                         // SAFETY: We've checked the type matches
                         unsafe { Some(*((&val as *const u64) as *const T)) }
-                    },
+                    }
                     _ => None, // Type mismatch or unsupported conversion
                 }
-            },
+            }
             _ => None,
         }
     }

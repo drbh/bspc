@@ -4,7 +4,7 @@
 //! with distinct error codes for different categories of failures.
 
 /// Errors that can occur during BSPC operations
-/// 
+///
 /// Error codes are organized by category with distinct numeric ranges
 /// to enable efficient error handling and debugging.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,7 +19,7 @@ pub enum BspcError {
     UnsupportedFormat = 3,
     /// Data corruption detected during parsing
     CorruptedData = 4,
-    
+
     // Boundary errors (size/alignment issues) - 16-31
     /// Index out of bounds access
     IndexOutOfBounds = 16,
@@ -29,7 +29,7 @@ pub enum BspcError {
     ArrayAlignment = 18,
     /// Insufficient buffer space for operation
     InsufficientBuffer = 19,
-    
+
     // Semantic errors (logical consistency) - 32-47
     /// Invalid range specification
     InvalidRange = 32,
@@ -51,7 +51,7 @@ impl BspcError {
             _ => ErrorCategory::Unknown,
         }
     }
-    
+
     /// Get the numeric error code
     pub const fn code(&self) -> u8 {
         *self as u8
@@ -79,13 +79,13 @@ impl core::fmt::Display for BspcError {
             BspcError::InvalidMetadata => "Invalid metadata section format",
             BspcError::UnsupportedFormat => "Unsupported format version",
             BspcError::CorruptedData => "Data corruption detected during parsing",
-            
+
             // Boundary errors
             BspcError::IndexOutOfBounds => "Index out of bounds access",
             BspcError::ArraySizeOverflow => "Array size would overflow",
             BspcError::ArrayAlignment => "Array alignment requirements not met",
             BspcError::InsufficientBuffer => "Insufficient buffer space for operation",
-            
+
             // Semantic errors
             BspcError::InvalidRange => "Invalid range specification",
             BspcError::InvalidLabel => "Invalid label format or content",

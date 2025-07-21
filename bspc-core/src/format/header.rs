@@ -141,72 +141,61 @@ impl BspcHeader {
 
         // Parse header fields (assuming little-endian)
         let version = bytes[4];
-        let format_type = bytes[5]; 
+        let format_type = bytes[5];
         let data_type = bytes[6];
         let structure_flags = bytes[7];
 
         // Parse u64 fields
         let nrows = u64::from_le_bytes([
-            bytes[8], bytes[9], bytes[10], bytes[11],
-            bytes[12], bytes[13], bytes[14], bytes[15],
+            bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
         ]);
         let ncols = u64::from_le_bytes([
-            bytes[16], bytes[17], bytes[18], bytes[19],
-            bytes[20], bytes[21], bytes[22], bytes[23],
+            bytes[16], bytes[17], bytes[18], bytes[19], bytes[20], bytes[21], bytes[22], bytes[23],
         ]);
         let nnz = u64::from_le_bytes([
-            bytes[24], bytes[25], bytes[26], bytes[27],
-            bytes[28], bytes[29], bytes[30], bytes[31],
+            bytes[24], bytes[25], bytes[26], bytes[27], bytes[28], bytes[29], bytes[30], bytes[31],
         ]);
 
         // Parse remaining u64 fields
         let values_offset = u64::from_le_bytes([
-            bytes[32], bytes[33], bytes[34], bytes[35],
-            bytes[36], bytes[37], bytes[38], bytes[39],
+            bytes[32], bytes[33], bytes[34], bytes[35], bytes[36], bytes[37], bytes[38], bytes[39],
         ]);
         let values_size = u64::from_le_bytes([
-            bytes[40], bytes[41], bytes[42], bytes[43],
-            bytes[44], bytes[45], bytes[46], bytes[47],
+            bytes[40], bytes[41], bytes[42], bytes[43], bytes[44], bytes[45], bytes[46], bytes[47],
         ]);
         let indices_0_offset = u64::from_le_bytes([
-            bytes[48], bytes[49], bytes[50], bytes[51],
-            bytes[52], bytes[53], bytes[54], bytes[55],
+            bytes[48], bytes[49], bytes[50], bytes[51], bytes[52], bytes[53], bytes[54], bytes[55],
         ]);
         let indices_0_size = u64::from_le_bytes([
-            bytes[56], bytes[57], bytes[58], bytes[59],
-            bytes[60], bytes[61], bytes[62], bytes[63],
+            bytes[56], bytes[57], bytes[58], bytes[59], bytes[60], bytes[61], bytes[62], bytes[63],
         ]);
         let indices_1_offset = u64::from_le_bytes([
-            bytes[64], bytes[65], bytes[66], bytes[67],
-            bytes[68], bytes[69], bytes[70], bytes[71],
+            bytes[64], bytes[65], bytes[66], bytes[67], bytes[68], bytes[69], bytes[70], bytes[71],
         ]);
         let indices_1_size = u64::from_le_bytes([
-            bytes[72], bytes[73], bytes[74], bytes[75],
-            bytes[76], bytes[77], bytes[78], bytes[79],
+            bytes[72], bytes[73], bytes[74], bytes[75], bytes[76], bytes[77], bytes[78], bytes[79],
         ]);
         let pointers_offset = u64::from_le_bytes([
-            bytes[80], bytes[81], bytes[82], bytes[83],
-            bytes[84], bytes[85], bytes[86], bytes[87],
+            bytes[80], bytes[81], bytes[82], bytes[83], bytes[84], bytes[85], bytes[86], bytes[87],
         ]);
         let pointers_size = u64::from_le_bytes([
-            bytes[88], bytes[89], bytes[90], bytes[91],
-            bytes[92], bytes[93], bytes[94], bytes[95],
+            bytes[88], bytes[89], bytes[90], bytes[91], bytes[92], bytes[93], bytes[94], bytes[95],
         ]);
         let metadata_offset = u64::from_le_bytes([
-            bytes[96], bytes[97], bytes[98], bytes[99],
-            bytes[100], bytes[101], bytes[102], bytes[103],
+            bytes[96], bytes[97], bytes[98], bytes[99], bytes[100], bytes[101], bytes[102],
+            bytes[103],
         ]);
         let metadata_size = u64::from_le_bytes([
-            bytes[104], bytes[105], bytes[106], bytes[107],
-            bytes[108], bytes[109], bytes[110], bytes[111],
+            bytes[104], bytes[105], bytes[106], bytes[107], bytes[108], bytes[109], bytes[110],
+            bytes[111],
         ]);
         let bloom_filter_offset = u64::from_le_bytes([
-            bytes[112], bytes[113], bytes[114], bytes[115],
-            bytes[116], bytes[117], bytes[118], bytes[119],
+            bytes[112], bytes[113], bytes[114], bytes[115], bytes[116], bytes[117], bytes[118],
+            bytes[119],
         ]);
         let bloom_filter_size = u64::from_le_bytes([
-            bytes[120], bytes[121], bytes[122], bytes[123],
-            bytes[124], bytes[125], bytes[126], bytes[127],
+            bytes[120], bytes[121], bytes[122], bytes[123], bytes[124], bytes[125], bytes[126],
+            bytes[127],
         ]);
 
         let mut reserved = [0u8; 32];
@@ -241,14 +230,14 @@ impl BspcHeader {
     #[cfg(feature = "alloc")]
     pub fn to_bytes(&self) -> alloc::vec::Vec<u8> {
         let mut bytes = alloc::vec::Vec::with_capacity(Self::SIZE);
-        
+
         // Magic bytes and basic fields
         bytes.extend_from_slice(&self.magic);
         bytes.push(self.version);
         bytes.push(self.format_type);
         bytes.push(self.data_type);
         bytes.push(self.structure_flags);
-        
+
         // u64 fields in little-endian
         bytes.extend_from_slice(&self.nrows.to_le_bytes());
         bytes.extend_from_slice(&self.ncols.to_le_bytes());
@@ -266,26 +255,26 @@ impl BspcHeader {
         bytes.extend_from_slice(&self.bloom_filter_offset.to_le_bytes());
         bytes.extend_from_slice(&self.bloom_filter_size.to_le_bytes());
         bytes.extend_from_slice(&self.reserved);
-        
+
         bytes
     }
 
     /// Convert header to bytes array (no-std compatible)
     pub const fn to_bytes_array(&self) -> [u8; Self::SIZE] {
         let mut bytes = [0u8; Self::SIZE];
-        
+
         // Magic bytes
         bytes[0] = self.magic[0];
         bytes[1] = self.magic[1];
         bytes[2] = self.magic[2];
         bytes[3] = self.magic[3];
-        
+
         // Basic fields
         bytes[4] = self.version;
         bytes[5] = self.format_type;
         bytes[6] = self.data_type;
         bytes[7] = self.structure_flags;
-        
+
         // u64 fields in little-endian
         let nrows_bytes = self.nrows.to_le_bytes();
         bytes[8] = nrows_bytes[0];
@@ -296,7 +285,7 @@ impl BspcHeader {
         bytes[13] = nrows_bytes[5];
         bytes[14] = nrows_bytes[6];
         bytes[15] = nrows_bytes[7];
-        
+
         let ncols_bytes = self.ncols.to_le_bytes();
         bytes[16] = ncols_bytes[0];
         bytes[17] = ncols_bytes[1];
@@ -306,7 +295,7 @@ impl BspcHeader {
         bytes[21] = ncols_bytes[5];
         bytes[22] = ncols_bytes[6];
         bytes[23] = ncols_bytes[7];
-        
+
         let nnz_bytes = self.nnz.to_le_bytes();
         bytes[24] = nnz_bytes[0];
         bytes[25] = nnz_bytes[1];
@@ -316,7 +305,7 @@ impl BspcHeader {
         bytes[29] = nnz_bytes[5];
         bytes[30] = nnz_bytes[6];
         bytes[31] = nnz_bytes[7];
-        
+
         let values_offset_bytes = self.values_offset.to_le_bytes();
         bytes[32] = values_offset_bytes[0];
         bytes[33] = values_offset_bytes[1];
@@ -326,7 +315,7 @@ impl BspcHeader {
         bytes[37] = values_offset_bytes[5];
         bytes[38] = values_offset_bytes[6];
         bytes[39] = values_offset_bytes[7];
-        
+
         let values_size_bytes = self.values_size.to_le_bytes();
         bytes[40] = values_size_bytes[0];
         bytes[41] = values_size_bytes[1];
@@ -336,7 +325,7 @@ impl BspcHeader {
         bytes[45] = values_size_bytes[5];
         bytes[46] = values_size_bytes[6];
         bytes[47] = values_size_bytes[7];
-        
+
         let indices_0_offset_bytes = self.indices_0_offset.to_le_bytes();
         bytes[48] = indices_0_offset_bytes[0];
         bytes[49] = indices_0_offset_bytes[1];
@@ -346,7 +335,7 @@ impl BspcHeader {
         bytes[53] = indices_0_offset_bytes[5];
         bytes[54] = indices_0_offset_bytes[6];
         bytes[55] = indices_0_offset_bytes[7];
-        
+
         let indices_0_size_bytes = self.indices_0_size.to_le_bytes();
         bytes[56] = indices_0_size_bytes[0];
         bytes[57] = indices_0_size_bytes[1];
@@ -356,7 +345,7 @@ impl BspcHeader {
         bytes[61] = indices_0_size_bytes[5];
         bytes[62] = indices_0_size_bytes[6];
         bytes[63] = indices_0_size_bytes[7];
-        
+
         let indices_1_offset_bytes = self.indices_1_offset.to_le_bytes();
         bytes[64] = indices_1_offset_bytes[0];
         bytes[65] = indices_1_offset_bytes[1];
@@ -366,7 +355,7 @@ impl BspcHeader {
         bytes[69] = indices_1_offset_bytes[5];
         bytes[70] = indices_1_offset_bytes[6];
         bytes[71] = indices_1_offset_bytes[7];
-        
+
         let indices_1_size_bytes = self.indices_1_size.to_le_bytes();
         bytes[72] = indices_1_size_bytes[0];
         bytes[73] = indices_1_size_bytes[1];
@@ -376,7 +365,7 @@ impl BspcHeader {
         bytes[77] = indices_1_size_bytes[5];
         bytes[78] = indices_1_size_bytes[6];
         bytes[79] = indices_1_size_bytes[7];
-        
+
         let pointers_offset_bytes = self.pointers_offset.to_le_bytes();
         bytes[80] = pointers_offset_bytes[0];
         bytes[81] = pointers_offset_bytes[1];
@@ -386,7 +375,7 @@ impl BspcHeader {
         bytes[85] = pointers_offset_bytes[5];
         bytes[86] = pointers_offset_bytes[6];
         bytes[87] = pointers_offset_bytes[7];
-        
+
         let pointers_size_bytes = self.pointers_size.to_le_bytes();
         bytes[88] = pointers_size_bytes[0];
         bytes[89] = pointers_size_bytes[1];
@@ -396,7 +385,7 @@ impl BspcHeader {
         bytes[93] = pointers_size_bytes[5];
         bytes[94] = pointers_size_bytes[6];
         bytes[95] = pointers_size_bytes[7];
-        
+
         let metadata_offset_bytes = self.metadata_offset.to_le_bytes();
         bytes[96] = metadata_offset_bytes[0];
         bytes[97] = metadata_offset_bytes[1];
@@ -406,7 +395,7 @@ impl BspcHeader {
         bytes[101] = metadata_offset_bytes[5];
         bytes[102] = metadata_offset_bytes[6];
         bytes[103] = metadata_offset_bytes[7];
-        
+
         let metadata_size_bytes = self.metadata_size.to_le_bytes();
         bytes[104] = metadata_size_bytes[0];
         bytes[105] = metadata_size_bytes[1];
@@ -416,7 +405,7 @@ impl BspcHeader {
         bytes[109] = metadata_size_bytes[5];
         bytes[110] = metadata_size_bytes[6];
         bytes[111] = metadata_size_bytes[7];
-        
+
         let bloom_filter_offset_bytes = self.bloom_filter_offset.to_le_bytes();
         bytes[112] = bloom_filter_offset_bytes[0];
         bytes[113] = bloom_filter_offset_bytes[1];
@@ -426,7 +415,7 @@ impl BspcHeader {
         bytes[117] = bloom_filter_offset_bytes[5];
         bytes[118] = bloom_filter_offset_bytes[6];
         bytes[119] = bloom_filter_offset_bytes[7];
-        
+
         let bloom_filter_size_bytes = self.bloom_filter_size.to_le_bytes();
         bytes[120] = bloom_filter_size_bytes[0];
         bytes[121] = bloom_filter_size_bytes[1];
@@ -436,14 +425,14 @@ impl BspcHeader {
         bytes[125] = bloom_filter_size_bytes[5];
         bytes[126] = bloom_filter_size_bytes[6];
         bytes[127] = bloom_filter_size_bytes[7];
-        
+
         // Reserved bytes (already initialized to 0)
         let mut i = 0;
         while i < 32 {
             bytes[128 + i] = self.reserved[i];
             i += 1;
         }
-        
+
         bytes
     }
 }
