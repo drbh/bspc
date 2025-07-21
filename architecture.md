@@ -5,32 +5,36 @@ BSPC builds on [binsparse-rs](https://github.com/drbh/binsparse-rs), implementin
 ## File Format
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  BSPC Header  │  Values  │  Row Indices  │  Col Indices      │
-│     68B       │ Variable │   Variable    │   Variable        │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│  BSPC Header  │  Values  │  Row Indices  │  Col Indices  │  Metadata    │
+│     160B      │ Variable │   Variable    │   Variable    │  Optional    │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Header (68 bytes)
+### Header (160 bytes)
 ```rust
 struct BspcHeader {
-    magic: [u8; 4],         // "BSPC"
-    version: u8,            // Format version
-    format_type: u8,        // COO=0, CSR=1, CSC=2
-    data_type: u8,          // f32=0, f64=1, i32=2, etc.
-    structure_flags: u8,    // Symmetric, triangular flags
-    nrows: u32,             // Matrix dimensions
-    ncols: u32,
-    nnz: u32,              // Non-zero count
-    values_offset: u32,     // File offsets and sizes
-    values_size: u32,
-    indices_0_offset: u32,  // Row indices (COO)
-    indices_0_size: u32,
-    indices_1_offset: u32,  // Column indices (COO)
-    indices_1_size: u32,
-    pointers_offset: u32,   // For CSR/CSC (unused in COO)
-    pointers_size: u32,
-    reserved: [u8; 16],     // Future extensions
+    magic: [u8; 4],             // "BSPC"
+    version: u8,                // Format version
+    format_type: u8,            // COO=0, CSR=1, CSC=2
+    data_type: u8,              // f32=0, f64=1, i32=2, etc.
+    structure_flags: u8,        // Symmetric, triangular flags
+    nrows: u64,                 // Matrix dimensions
+    ncols: u64,
+    nnz: u64,                   // Non-zero count
+    values_offset: u64,         // File offsets and sizes
+    values_size: u64,
+    indices_0_offset: u64,      // Row indices (COO)
+    indices_0_size: u64,
+    indices_1_offset: u64,      // Column indices (COO)
+    indices_1_size: u64,
+    pointers_offset: u64,       // For CSR/CSC (unused in COO)
+    pointers_size: u64,
+    metadata_offset: u64,       // Optional metadata region
+    metadata_size: u64,
+    bloom_filter_offset: u64,   // Optional stored bloom filter
+    bloom_filter_size: u64,
+    reserved: [u8; 32],         // Future extensions
 }
 ```
 
@@ -52,49 +56,79 @@ struct BspcHeader {
 - Aligned to 4-byte boundaries
 - Size: `nnz * 4` bytes
 
-**Note**: Bloom filters are created at runtime during matrix loading, not stored in the file format.
+### Metadata Section (Optional)
+- Arbitrary metadata stored as bytes
+- Application-specific information
+- Only present if metadata_size > 0
 
-## Core Components
+### Bloom Filter Section (Optional)
+- Pre-computed bloom filter for row existence checks
+- Stored in file for faster startup
+- Only present if bloom_filter_size > 0
 
-### MmapMatrix
-- Memory-maps entire .bspc file
-- Provides zero-copy slice access to arrays
-- Thread-safe (Send + Sync)
-- No heap allocation for data access
+## System Architecture
 
-### ChunkedMatrix
-- Wrapper for matrices with bloom filter optimization
-- Creates runtime bloom filters for efficient row queries
-- Configurable memory limits and hash function count
-- Provides unified API across different matrix types
+```
+┌─────────────────┐
+│      bspc       │  ← I/O layer
+│   (file I/O)    │
+└─────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│   bspc-core     │  ← Core library
+│  (data access)  │
+└─────────────────┘
+```
 
-### Runtime Bloom Filter
-- Created during matrix loading (not stored in file)
-- Fixed-size bit array (32 bytes default) 
-- Configurable hash function count (1-8, default 3)
-- Tracks which rows contain data for fast existence checks
-- Enables skipping empty rows during queries
+### bspc-core
+Foundation library providing:
+- **Backend abstraction**: File system, HTTP, and memory-mapped data sources
+- **MmapMatrix**: Zero-copy memory-mapped matrix access
+- **ChunkedMatrix**: Bloom filter wrapper for optimized row queries  
+- **Runtime Bloom Filter**: Probabilistic row existence checking
+
+### bspc
+File I/O layer built on bspc-core:
+- **BspcFile**: Read/write .bspc files to disk
+- **Serialization**: Convert matrices to/from BSPC format
+- **Type safety**: Compile-time guarantees for data types
+
+## Dependency Flow
+
+```
+User Code
+    │
+    ▼
+bspc::BspcFile ──► bspc_core::MmapMatrix ──► bspc_core::Backend
+    │                      │                      │
+    │                      ▼                      ▼
+    └──────────► bspc_core::ChunkedMatrix    File/HTTP/Memory
+                      │
+                      ▼
+                bspc_core::BloomFilter
+```
 
 ## Query Flow
 
 ```
-Query row 1000 ──┐
-                 │
-                 ▼
-Check runtime bloom filter:
-├─ Contains row 1000? ❌ ──► Return None (definitely empty)
-└─ Contains row 1000? ✅ ──┐ (might have data)
-                           │
-                           ▼
-Linear search through COO arrays ──► Return results
+Query (row, col) ──┐
+                   │
+                   ▼
+Check bloom filter (if available):
+├─ Row exists? ❌ ──► Return None (row definitely empty)
+└─ Row exists? ✅ ──┐ (row might have data)
+                    │
+                    ▼
+Binary/linear search through indices ──► Return value or None
 ```
 
 ## Design Decisions
 
-**Memory mapping**: Direct file access without loading into RAM  
-**Runtime bloom filters**: Probabilistic skip optimization without file size overhead  
-**COO format**: Simple, general sparse matrix representation compatible with Binary Sparse Format  
-**Fixed header**: Fast parsing without variable-length fields  
+**Memory mapping**: Direct file access without loading entire matrix into RAM  
+**Bloom filters**: Probabilistic row existence checks (can be stored or computed at runtime)  
+**COO format**: Simple, general sparse matrix representation  
+**Fixed header**: 160-byte header with u64 offsets for large file support  
 **Little-endian**: Standard byte ordering for cross-platform compatibility  
-**Alignment**: Proper data alignment for direct memory access without copying  
-**Zero-copy access**: Iterator-based API for efficient bulk operations
+**u32 indices**: Balance between memory efficiency and matrix size support (up to 4.3B × 4.3B)  
+**Backend abstraction**: Supports local files, HTTP endpoints, and custom data sources

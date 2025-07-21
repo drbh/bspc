@@ -6,39 +6,21 @@
 <!-- [![Crates.io](https://img.shields.io/crates/v/bspc.svg)](https://crates.io/crates/bspc)
 [![Documentation](https://docs.rs/bspc/badge.svg)](https://docs.rs/bspc/) -->
 
-**Query massive sparse matrices instantly. Zero-copy. Memory-mapped.**
+**A memory-mapped sparse matrix format with runtime bloom filter optimization.**
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  BSPC Header  │  Values  │  Row Indices  │  Col Indices      │
-│     68B       │ Variable │   Variable    │   Variable        │
-└──────────────────────────────────────────────────────────────┘
-```
-
-### Why BSPC?
-
-Sparse matrices are everywhere in ML, but existing formats are slow for queries:
-
-| Format   | Zero-copy | Bloom filters | Query speed |
-| -------- | --------- | ------------- | ----------- |
-| pickle   | ✗         | ✗             | Slow        |
-| HDF5     | ✗         | ✗             | Slow        |
-| NPZ      | ✗         | ✗             | Slow        |
-| **BSPC** | **✓**     | **✓**         | **Fast**    |
-
-**The secret:** Memory-mapped access + runtime bloom filters skip 90%+ of disk reads.
+BSPC implements the Binary Sparse Format standard with memory-mapped access and optional bloom filters for faster row queries on large matrices.
 
 ### Usage
 
 ```rust
 use bspc::{BspcFile, MmapMatrix};
 
-// Save any sparse matrix
-BspcFile::write_matrix(&matrix, "huge.bspc")?;
+// Save a sparse matrix
+BspcFile::write_matrix(&matrix, "data.bspc")?;
 
-// Query without loading into memory
-let mmap: MmapMatrix<f64> = BspcFile::read_matrix("huge.bspc")?;
-let value = mmap.get_element(row, col)?;  // Microseconds
+// Memory-map and query
+let mmap: MmapMatrix<f64> = BspcFile::read_matrix("data.bspc")?;
+let value = mmap.get_element(row, col)?;
 ```
 
 ### Install
@@ -48,7 +30,7 @@ let value = mmap.get_element(row, col)?;  // Microseconds
 bspc = "0.1"
 ```
 
-**Result:** Query huge matrices on a laptop. Memory usage stays constant.
+Query large matrices without loading them into memory.
 
 
 ### Quickstart Guide
