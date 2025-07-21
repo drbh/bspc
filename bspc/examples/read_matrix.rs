@@ -1,10 +1,12 @@
 //! Simple example to read a sparse matrix with bloom filter optimization
 
 use bspc::{BspcFile, ChunkConfig};
+use bspc_core::MatrixElement;
 use std::time::Instant;
 
 fn main() -> binsparse_rs::Result<()> {
-    let filename = "example_matrix.bspc";
+    // let filename = "example_matrix.bspc";
+    let filename = "test_v2_large.bspc";
     let start_time = Instant::now();
 
     // Check if file exists
@@ -38,16 +40,17 @@ fn main() -> binsparse_rs::Result<()> {
         (999, 500),  // Should be sparse
         (90000, 0),  // Should have data
         (1234, 567), // Should be sparse
+        (700, 1100),
     ];
 
     for (row, col) in test_positions {
         if row < dimensions.0 && col < dimensions.1 {
             let start = Instant::now();
-            match matrix.get_element(row, col)? {
+            match matrix.get_element(row, col) {
                 Some(value) => {
                     let time = start.elapsed();
                     println!(
-                        "   matrix[{}, {}] = {} (found in {:.3}ms)",
+                        "   matrix[{}, {}] = {:?} (found in {:.3}ms)",
                         row,
                         col,
                         value,
@@ -72,13 +75,13 @@ fn main() -> binsparse_rs::Result<()> {
     for col in 0..10 {
         if col < dimensions.1 {
             let start = Instant::now();
-            match matrix.get_element(10, col)? {
+            match matrix.get_element(10, col) {
                 Some(value) => {
                     let time = start.elapsed();
                     println!(
                         "   [{}] = {} ({:.3}ms)",
                         col,
-                        value,
+                        value.to_f64(),
                         time.as_secs_f64() * 1000.0
                     );
                 }
@@ -95,13 +98,13 @@ fn main() -> binsparse_rs::Result<()> {
     for col in (3..=30).step_by(3) {
         if col < dimensions.1 {
             let start = Instant::now();
-            match matrix.get_element(100, col)? {
+            match matrix.get_element(100, col) {
                 Some(value) => {
                     let time = start.elapsed();
                     println!(
                         "   [{}] = {} ({:.3}ms)",
                         col,
-                        value,
+                        value.to_f64(),
                         time.as_secs_f64() * 1000.0
                     );
                 }
@@ -112,6 +115,44 @@ fn main() -> binsparse_rs::Result<()> {
             }
         }
     }
+
+    // // iterate over rows until you find a non-zero value
+    // println!("\nIterating over rows until a non-zero value is found:");
+    // let mut found_non_zero = false;
+    // for row in 0..dimensions.0 {
+    //     if found_non_zero {
+    //         break;
+    //     }
+    //     for col in 0..dimensions.1 {
+    //         let start = Instant::now();
+    //         match matrix.get_element(row, col) {
+    //             Some(value) => {
+    //                 let time = start.elapsed();
+    //                 println!(
+    //                     "   matrix[{}, {}] = {} (found in {:.3}ms)",
+    //                     row,
+    //                     col,
+    //                     value.to_f64(),
+    //                     time.as_secs_f64() * 1000.0
+    //                 );
+    //                 if value.to_f64() > 0.1 {
+    //                     println!("   Found non-zero value at matrix[{}, {}]", row, col);
+    //                     found_non_zero = true;
+    //                 }
+    //                 break; // Stop after first non-zero value
+    //             }
+    //             None => {
+    //                 let time = start.elapsed();
+    //                 println!(
+    //                     "   matrix[{}, {}] = 0 (sparse, {:.3}ms)",
+    //                     row,
+    //                     col,
+    //                     time.as_secs_f64() * 1000.0
+    //                 );
+    //             }
+    //         }
+    //     }
+    // }
 
     // Show total time
     let total_time = start_time.elapsed();

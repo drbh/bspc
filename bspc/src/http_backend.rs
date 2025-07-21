@@ -102,12 +102,12 @@ pub mod http_impl {
 
         /// Get matrix format
         pub fn format(&self) -> MatrixFormat {
-            MatrixFormat::from(self.header.format_type)
+            MatrixFormat::from_u8(self.header.format_type).unwrap_or(MatrixFormat::Coo)
         }
 
         /// Get data type
         pub fn data_type(&self) -> DataType {
-            DataType::from(self.header.data_type)
+            DataType::from_u8(self.header.data_type).unwrap_or(DataType::F64)
         }
 
         /// Get a specific element with efficient range queries
@@ -131,7 +131,7 @@ pub mod http_impl {
                 self.get_cached_range(col_indices_range)
             )?;
 
-            let data_type = DataType::from(self.header.data_type);
+            let data_type = DataType::from_u8(self.header.data_type).unwrap_or(DataType::F64);
             let nnz = self.header.nnz as usize;
 
             // Convert row and column indices to u32 slices
@@ -176,7 +176,7 @@ pub mod http_impl {
                 self.get_cached_range(col_indices_range)
             )?;
 
-            let data_type = DataType::from(self.header.data_type);
+            let data_type = DataType::from_u8(self.header.data_type).unwrap_or(DataType::F64);
             let nnz = self.header.nnz as usize;
 
             // Convert indices to u32 slices
@@ -236,7 +236,7 @@ pub mod http_impl {
                 self.get_cached_range(col_indices_range)
             )?;
 
-            let data_type = DataType::from(self.header.data_type);
+            let data_type = DataType::from_u8(self.header.data_type).unwrap_or(DataType::F64);
             let nnz = self.header.nnz as usize;
 
             // Convert indices to u32 slices
@@ -283,7 +283,7 @@ pub mod http_impl {
                 self.get_cached_range(col_indices_range)
             )?;
 
-            let data_type = DataType::from(self.header.data_type);
+            let data_type = DataType::from_u8(self.header.data_type).unwrap_or(DataType::F64);
             let nnz = self.header.nnz as usize;
 
             // Convert indices to u32 slices
@@ -326,7 +326,7 @@ pub mod http_impl {
                 self.get_cached_range(col_indices_range)
             )?;
 
-            let data_type = DataType::from(self.header.data_type);
+            let data_type = DataType::from_u8(self.header.data_type).unwrap_or(DataType::F64);
             let nnz = self.header.nnz as usize;
 
             // Convert indices to u32 slices

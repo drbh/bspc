@@ -1,67 +1,79 @@
-//! BSPC - Binary Sparse Matrix format with memory mapping support
+//! BSPC - High-performance Binary Sparse Matrix Implementation
 //!
-//! This library provides efficient storage and access of sparse matrices using
-//! memory mapping for zero-copy operations with bloom filter optimizations.
+//! This library provides efficient sparse matrix storage and access using the BSPC format
+//! with memory mapping, HTTP backends, and bloom filter optimizations.
+//!
+//! ## Architecture
+//!
+//! BSPC follows a clean specification/implementation separation:
+//!
+//! - **bspc-core**: Pure format specifications, traits, and validation (no I/O)
+//! - **bspc**: Concrete implementations with I/O, networking, and optimizations
+//!
+//! ## Quick Start
+//!
+//! ```rust,no_run
+//! use bspc::{BspcFile, ChunkConfig, MatrixElement};
+//! 
+//! fn example() -> Result<(), binsparse_rs::Error> {
+//!     // Load a matrix with bloom filter optimization
+//!     let config = ChunkConfig::default().with_bloom_hash_count(3);
+//!     let matrix = BspcFile::read_matrix_with_bloom_filter("matrix.bspc", config)?;
+//! 
+//!     // Access elements efficiently
+//!     let dimensions = matrix.dimensions();
+//!     if let Some(value) = matrix.get_element(100, 200) {
+//!         println!("matrix[100, 200] = {}", value.to_f64());
+//!     }
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Features
+//!
+//! - **Memory-mapped I/O**: Zero-copy access to large sparse matrices
+//! - **Bloom filters**: Skip empty chunks for faster sparse access
+//! - **HTTP backend**: Stream matrices over HTTP with range requests
+//! - **Metadata support**: Row/column labels with O(1) lookup
+//! - **Type safety**: Strong typing with bspc-core abstractions
 
-// Re-export core functionality
-pub use bspc_core::*;
+// Re-export core abstractions and format definitions  
+pub use bspc_core::{
+    // Core traits
+    SparseMatrix, MatrixOperations, MatrixElement,
+    // Format definitions  
+    BspcHeader, DataType, MatrixFormat,
+    // Error handling
+    BspcError, Result, ErrorCategory,
+    // Validation utilities
+    validate_array_bounds, parse_range,
+};
 
-use binsparse_rs::{array::ArrayValue, matrix::Matrix};
+// binsparse_rs imports are used by individual modules as needed
 
-// I/O and memory mapping features
+// Implementation modules
 pub mod chunk_bloom_filter;
-pub mod chunked_backend;
+pub mod chunked_backend; 
 pub mod http_backend;
 pub mod metadata;
 #[cfg(feature = "mmap")]
 pub mod mmap_backend;
 
+// Public exports
 pub use chunk_bloom_filter::ChunkBloomFilter;
-pub use chunked_backend::{ChunkConfig, ChunkableMatrix, ChunkedMatrix, ChunkedProcessor};
+pub use chunked_backend::{ChunkConfig, ChunkedMatrix, ChunkedProcessor};
 
 // Memory mapping features
 #[cfg(feature = "mmap")]
-pub use mmap_backend::{BspcFile, DynamicMatrix, MatrixElement, MmapMatrix, SubmatrixView};
+pub use mmap_backend::{BspcFile, DynamicElement, DynamicMatrix, MmapMatrix, SubmatrixView};
 
-// HTTP backend features
+// HTTP backend features  
 #[cfg(feature = "http")]
-pub use http_backend::{parse_range, HttpMatrix};
+pub use http_backend::HttpMatrix;
 
 // Metadata features
-pub use metadata::{BspcMetadataHeader, LabelArray, MetadataBuilder, MetadataView};
+pub use metadata::{MetadataBuilder, MetadataView};
 
-/// Extension trait to add row and column access methods to Matrix
-pub trait MatrixExtensions<T: binsparse_rs::backend::StorageBackend> {
-    fn get_row(&self, row_index: usize) -> binsparse_rs::Result<Vec<ArrayValue>>;
-    fn get_col(&self, col_index: usize) -> binsparse_rs::Result<Vec<ArrayValue>>;
-}
-
-impl<T: binsparse_rs::backend::StorageBackend> MatrixExtensions<T> for Matrix<T> {
-    fn get_row(&self, row_index: usize) -> binsparse_rs::Result<Vec<ArrayValue>> {
-        if row_index >= self.nrows {
-            return Ok(Vec::new());
-        }
-
-        let mut row_elements = Vec::new();
-        for col in 0..self.ncols {
-            if let Some(value) = self.get_element(row_index, col)? {
-                row_elements.push(value);
-            }
-        }
-        Ok(row_elements)
-    }
-
-    fn get_col(&self, col_index: usize) -> binsparse_rs::Result<Vec<ArrayValue>> {
-        if col_index >= self.ncols {
-            return Ok(Vec::new());
-        }
-
-        let mut col_elements = Vec::new();
-        for row in 0..self.nrows {
-            if let Some(value) = self.get_element(row, col_index)? {
-                col_elements.push(value);
-            }
-        }
-        Ok(col_elements)
-    }
-}
+// Note: MatrixOperations for binsparse-rs Matrix types would require 
+// orphan rule compliance. Users should wrap Matrix in their own type
+// if they need MatrixOperations functionality.

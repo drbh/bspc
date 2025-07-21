@@ -65,34 +65,42 @@ async fn main() -> Result<(), binsparse_rs::Error> {
         if let Some(metadata_view) = matrix.metadata_view()? {
             // Test row labels
             println!("Row labels:");
-            let row_labels_array = metadata_view.row_labels_array()?;
-            println!(
-                "  Count: {}, Stride: {}",
-                row_labels_array.count, row_labels_array.stride
-            );
+            if let Some(row_labels_array) = metadata_view.row_labels_array()? {
+                println!(
+                    "  Count: {}, Stride: {}",
+                    row_labels_array.count(), row_labels_array.stride()
+                );
 
-            for i in 0..row_labels_array.count {
-                let label = metadata_view.row_label(i)?;
-                let label_str = std::str::from_utf8(label)
-                    .unwrap_or("<invalid utf8>")
-                    .trim_end_matches('\0');
-                println!("  Row {i}: {label_str}");
+                for i in 0..row_labels_array.count() {
+                    if let Some(label) = metadata_view.row_label(i)? {
+                        let label_str = std::str::from_utf8(label)
+                            .unwrap_or("<invalid utf8>")
+                            .trim_end_matches('\0');
+                        println!("  Row {i}: {label_str}");
+                    }
+                }
+            } else {
+                println!("  No row labels found");
             }
 
             // Test column labels
             println!("Column labels:");
-            let col_labels_array = metadata_view.col_labels_array()?;
-            println!(
-                "  Count: {}, Stride: {}",
-                col_labels_array.count, col_labels_array.stride
-            );
+            if let Some(col_labels_array) = metadata_view.col_labels_array()? {
+                println!(
+                    "  Count: {}, Stride: {}",
+                    col_labels_array.count(), col_labels_array.stride()
+                );
 
-            for i in 0..col_labels_array.count {
-                let label = metadata_view.col_label(i)?;
-                let label_str = std::str::from_utf8(label)
-                    .unwrap_or("<invalid utf8>")
-                    .trim_end_matches('\0');
-                println!("  Column {i}: {label_str}");
+                for i in 0..col_labels_array.count() {
+                    if let Some(label) = metadata_view.col_label(i)? {
+                        let label_str = std::str::from_utf8(label)
+                            .unwrap_or("<invalid utf8>")
+                            .trim_end_matches('\0');
+                        println!("  Column {i}: {label_str}");
+                    }
+                }
+            } else {
+                println!("  No column labels found");
             }
         }
     } else {

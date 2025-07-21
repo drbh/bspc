@@ -4,7 +4,7 @@
 
 use super::mmap_core::{MatrixElement, MmapMatrix};
 use binsparse_rs::{array::ArrayValue, Error, Result};
-use bspc_core::{DataType, MatrixFormat};
+use bspc_core::{DataType, MatrixFormat, SparseMatrix};
 use std::collections::HashMap;
 
 /// Macro to generate repetitive method implementations for DynamicMatrix
@@ -74,8 +74,6 @@ impl DynamicMatrix {
     impl_dynamic_method!(col_label(col_idx: u32) -> Result<Option<&[u8]>>);
 
     /// Get row view iterator with zero-copy access
-    // TODO: Consider returning impl Iterator instead of Box<dyn> for better performance
-    // TODO: Add parallel row iteration support for large matrices
     pub fn row_view(
         &self,
         row: usize,
@@ -189,23 +187,115 @@ impl<'a> ExactSizeIterator for DynamicMatrixRowIterator<'a> {
     }
 }
 
-// Implement ChunkableMatrix for DynamicMatrix
-#[cfg(feature = "mmap")]
-impl crate::chunked_backend::ChunkableMatrix for DynamicMatrix {
-    fn nrows(&self) -> usize {
-        self.nrows()
+/// Dynamic element type that can represent any matrix element
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DynamicElement {
+    F32(f32),
+    F64(f64),
+    I32(i32),
+    I64(i64),
+    U32(u32),
+    U64(u64),
+}
+
+// Implement bspc_core::MatrixElement for DynamicElement
+impl bspc_core::MatrixElement for DynamicElement {
+    fn data_type() -> bspc_core::DataType {
+        bspc_core::DataType::F64 // Default to F64
+    }
+    
+    fn from_f64(value: f64) -> Self {
+        DynamicElement::F64(value)
+    }
+    
+    fn to_f64(self) -> f64 {
+        match self {
+            DynamicElement::F32(v) => v as f64,
+            DynamicElement::F64(v) => v,
+            DynamicElement::I32(v) => v as f64,
+            DynamicElement::I64(v) => v as f64,
+            DynamicElement::U32(v) => v as f64,
+            DynamicElement::U64(v) => v as f64,
+        }
+    }
+}
+
+// Implement local MatrixElement for DynamicElement
+impl MatrixElement for DynamicElement {
+    fn to_array_value(self) -> ArrayValue {
+        match self {
+            DynamicElement::F32(v) => ArrayValue::Float32(v),
+            DynamicElement::F64(v) => ArrayValue::Float64(v),
+            DynamicElement::I32(v) => ArrayValue::Int32(v),
+            DynamicElement::I64(v) => ArrayValue::Int64(v),
+            DynamicElement::U32(v) => ArrayValue::UInt32(v),
+            DynamicElement::U64(v) => ArrayValue::UInt64(v),
+        }
     }
 
-    fn ncols(&self) -> usize {
-        self.ncols()
+    fn from_le_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() >= 8 {
+            let value = f64::from_le_bytes([
+                bytes[0], bytes[1], bytes[2], bytes[3],
+                bytes[4], bytes[5], bytes[6], bytes[7],
+            ]);
+            Ok(DynamicElement::F64(value))
+        } else if bytes.len() >= 4 {
+            let value = f32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+            Ok(DynamicElement::F32(value))
+        } else {
+            Err(Error::InvalidState("Not enough bytes for DynamicElement"))
+        }
+    }
+
+    fn to_le_bytes(self) -> Vec<u8> {
+        match self {
+            DynamicElement::F32(v) => v.to_le_bytes().to_vec(),
+            DynamicElement::F64(v) => v.to_le_bytes().to_vec(),
+            DynamicElement::I32(v) => v.to_le_bytes().to_vec(),
+            DynamicElement::I64(v) => v.to_le_bytes().to_vec(),
+            DynamicElement::U32(v) => v.to_le_bytes().to_vec(),
+            DynamicElement::U64(v) => v.to_le_bytes().to_vec(),
+        }
+    }
+}
+
+impl DynamicElement {
+    /// Convert from ArrayValue
+    pub fn from_array_value(value: ArrayValue) -> Self {
+        match value {
+            ArrayValue::Float32(v) => DynamicElement::F32(v),
+            ArrayValue::Float64(v) => DynamicElement::F64(v),
+            ArrayValue::Int32(v) => DynamicElement::I32(v),
+            ArrayValue::Int64(v) => DynamicElement::I64(v),
+            ArrayValue::UInt32(v) => DynamicElement::U32(v),
+            ArrayValue::UInt64(v) => DynamicElement::U64(v),
+            // Convert other types to appropriate equivalents
+            ArrayValue::UInt8(v) => DynamicElement::U32(v as u32),
+            ArrayValue::UInt16(v) => DynamicElement::U32(v as u32),
+            ArrayValue::Int8(v) => DynamicElement::I32(v as i32),
+            ArrayValue::Int16(v) => DynamicElement::I32(v as i32),
+            ArrayValue::BInt8(v) => DynamicElement::I32(v as i32),
+        }
+    }
+}
+
+// Implement SparseMatrix for DynamicMatrix using DynamicElement as the element type
+#[cfg(feature = "mmap")]
+impl SparseMatrix for DynamicMatrix {
+    type Element = DynamicElement;
+
+    fn get_element(&self, row: usize, col: usize) -> Option<Self::Element> {
+        self.get_element(row, col).ok().flatten()
+            .map(DynamicElement::from_array_value)
+    }
+
+    fn dimensions(&self) -> (usize, usize) {
+        (self.nrows(), self.ncols())
     }
 
     fn nnz(&self) -> usize {
         self.nnz()
-    }
-
-    fn get_element(&self, row: usize, col: usize) -> Result<Option<ArrayValue>> {
-        self.get_element(row, col)
     }
 }
 
@@ -363,9 +453,6 @@ impl<T: MatrixElement> MmapMatrix<T> {
     }
 
     /// Create a submatrix view
-    // TODO: Add validation for range bounds (start <= end, within matrix dimensions)
-    // TODO: Consider lazy evaluation for large submatrix views
-    // TODO: Add support for non-contiguous row/column selections
     pub fn submatrix_view(
         &self,
         rows: std::ops::Range<usize>,
@@ -460,9 +547,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
                 }
             })))
         } else {
-            // Fallback to original implementation if no bloom filter
-            // TODO: Add performance warning when falling back to O(n) scan
-            // TODO: Consider building temporary index for large range queries
+            // Fallback: Linear scan when no bloom filter available
             Ok(Box::new((0..values.len()).filter_map(move |i| {
                 let file_row = row_indices[i] as usize;
                 let file_col = col_indices[i] as usize;
@@ -625,7 +710,8 @@ impl<T: MatrixElement> MmapMatrix<T> {
             return Ok(None);
         };
 
-        let header = crate::metadata::BspcMetadataHeader::from_bytes(metadata_bytes)?;
+        let header = crate::metadata::BspcMetadataHeader::from_bytes(metadata_bytes)
+            .map_err(|_| Error::InvalidState("Invalid metadata header"))?;
         if header.row_labels_size == 0 {
             return Ok(None);
         }
@@ -638,13 +724,13 @@ impl<T: MatrixElement> MmapMatrix<T> {
 
         let labels_data = &metadata_bytes[start..end];
         let labels_array = crate::metadata::LabelArray::from_bytes(labels_data)?;
-        if row_idx >= labels_array.count {
+        if row_idx >= labels_array.count() {
             return Err(Error::InvalidState("Row index out of bounds"));
         }
 
-        let label_start = crate::metadata::LabelArray::HEADER_SIZE
-            + (row_idx as usize * labels_array.stride as usize);
-        let label_end = label_start + labels_array.stride as usize;
+        let label_start = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE
+            + (row_idx as usize * labels_array.stride() as usize);
+        let label_end = label_start + labels_array.stride() as usize;
         if label_end > labels_data.len() {
             return Err(Error::InvalidState("Row label extends beyond data"));
         }
@@ -658,7 +744,8 @@ impl<T: MatrixElement> MmapMatrix<T> {
             return Ok(None);
         };
 
-        let header = crate::metadata::BspcMetadataHeader::from_bytes(metadata_bytes)?;
+        let header = crate::metadata::BspcMetadataHeader::from_bytes(metadata_bytes)
+            .map_err(|_| Error::InvalidState("Invalid metadata header"))?;
         if header.col_labels_size == 0 {
             return Ok(None);
         }
@@ -671,13 +758,13 @@ impl<T: MatrixElement> MmapMatrix<T> {
 
         let labels_data = &metadata_bytes[start..end];
         let labels_array = crate::metadata::LabelArray::from_bytes(labels_data)?;
-        if col_idx >= labels_array.count {
+        if col_idx >= labels_array.count() {
             return Err(Error::InvalidState("Column index out of bounds"));
         }
 
-        let label_start = crate::metadata::LabelArray::HEADER_SIZE
-            + (col_idx as usize * labels_array.stride as usize);
-        let label_end = label_start + labels_array.stride as usize;
+        let label_start = bspc_core::format::constants::metadata::LABEL_ARRAY_HEADER_SIZE
+            + (col_idx as usize * labels_array.stride() as usize);
+        let label_end = label_start + labels_array.stride() as usize;
         if label_end > labels_data.len() {
             return Err(Error::InvalidState("Column label extends beyond data"));
         }
@@ -686,22 +773,54 @@ impl<T: MatrixElement> MmapMatrix<T> {
     }
 }
 
-// Implement ChunkableMatrix for MmapMatrix
+// Implement SparseMatrix for MmapMatrix
 #[cfg(feature = "mmap")]
-impl<T: MatrixElement> crate::chunked_backend::ChunkableMatrix for MmapMatrix<T> {
-    fn nrows(&self) -> usize {
-        self.nrows()
+impl<T: MatrixElement + bspc_core::MatrixElement> SparseMatrix for MmapMatrix<T> {
+    type Element = T;
+
+    fn get_element(&self, row: usize, col: usize) -> Option<Self::Element> {
+        // Use the typed get_element_typed method if available, otherwise convert from ArrayValue
+        match self.get_element(row, col) {
+            Ok(Some(array_value)) => {
+                // Convert ArrayValue to T - this is a simplified conversion
+                // In practice, you'd want a more robust conversion based on the actual types
+                match array_value {
+                    ArrayValue::Float32(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f32>() => {
+                        // SAFETY: We've checked the type matches
+                        unsafe { Some(*((&val as *const f32) as *const T)) }
+                    },
+                    ArrayValue::Float64(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<f64>() => {
+                        // SAFETY: We've checked the type matches
+                        unsafe { Some(*((&val as *const f64) as *const T)) }
+                    },
+                    ArrayValue::Int32(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i32>() => {
+                        // SAFETY: We've checked the type matches
+                        unsafe { Some(*((&val as *const i32) as *const T)) }
+                    },
+                    ArrayValue::Int64(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<i64>() => {
+                        // SAFETY: We've checked the type matches
+                        unsafe { Some(*((&val as *const i64) as *const T)) }
+                    },
+                    ArrayValue::UInt32(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u32>() => {
+                        // SAFETY: We've checked the type matches
+                        unsafe { Some(*((&val as *const u32) as *const T)) }
+                    },
+                    ArrayValue::UInt64(val) if core::any::TypeId::of::<T>() == core::any::TypeId::of::<u64>() => {
+                        // SAFETY: We've checked the type matches
+                        unsafe { Some(*((&val as *const u64) as *const T)) }
+                    },
+                    _ => None, // Type mismatch or unsupported conversion
+                }
+            },
+            _ => None,
+        }
     }
 
-    fn ncols(&self) -> usize {
-        self.ncols()
+    fn dimensions(&self) -> (usize, usize) {
+        (self.nrows(), self.ncols())
     }
 
     fn nnz(&self) -> usize {
         self.nnz()
-    }
-
-    fn get_element(&self, row: usize, col: usize) -> Result<Option<ArrayValue>> {
-        self.get_element(row, col)
     }
 }

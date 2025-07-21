@@ -19,8 +19,6 @@ macro_rules! safe_array_accessor {
 }
 
 /// Safely validate array size for u32 indices with overflow protection
-// TODO: Consider using const generics to make this generic for any integer type
-// TODO: Add unit tests with edge cases (MAX values, alignment issues)
 pub(crate) fn validate_u32_array_size(byte_len: usize) -> Result<usize> {
     const U32_SIZE: usize = 4;
 
@@ -84,34 +82,36 @@ fn create_u32_slice(bytes: &[u8]) -> Result<&[u32]> {
     Ok(slice)
 }
 
-/// Macro to implement MatrixElement for primitive types
-macro_rules! impl_matrix_element {
-    ($type:ty, $array_variant:ident, $data_type:ident, $size:literal, $from_f64:expr) => {
+/// Local trait for mmap-specific matrix element operations
+/// 
+/// This trait provides mmap-specific functionality like ArrayValue conversion
+/// and byte serialization that builds on top of bspc_core::MatrixElement.
+pub trait MatrixElement: bspc_core::MatrixElement + Send + Sync + 'static {
+    /// Convert to ArrayValue for binsparse_rs compatibility
+    fn to_array_value(self) -> binsparse_rs::array::ArrayValue;
+    /// Read from bytes in little-endian format
+    fn from_le_bytes(bytes: &[u8]) -> Result<Self>;
+    /// Write to bytes in little-endian format
+    fn to_le_bytes(self) -> Vec<u8>;
+}
+
+/// Macro to implement mmap-specific MatrixElement for primitive types
+macro_rules! impl_mmap_matrix_element {
+    ($type:ty, $array_variant:ident) => {
         impl MatrixElement for $type {
             fn to_array_value(self) -> binsparse_rs::array::ArrayValue {
                 binsparse_rs::array::ArrayValue::$array_variant(self)
             }
 
-            fn from_f64(value: f64) -> Self {
-                $from_f64(value)
-            }
-
-            fn data_type() -> DataType {
-                DataType::$data_type
-            }
-
-            fn size_bytes() -> usize {
-                $size
-            }
-
             fn from_le_bytes(bytes: &[u8]) -> Result<Self> {
-                if bytes.len() < $size {
+                const SIZE: usize = std::mem::size_of::<$type>();
+                if bytes.len() < SIZE {
                     return Err(Error::ConversionError(concat!(
                         "Insufficient bytes for ",
                         stringify!($type)
                     )));
                 }
-                let array: [u8; $size] = bytes[0..$size].try_into().map_err(|_| {
+                let array: [u8; SIZE] = bytes[0..SIZE].try_into().map_err(|_| {
                     Error::ConversionError(concat!(
                         "Failed to convert bytes to ",
                         stringify!($type),
@@ -128,72 +128,16 @@ macro_rules! impl_matrix_element {
     };
 }
 
-/// Trait for types that can be used as matrix elements
-// TODO: Consider adding a zero() method for sparse matrix optimizations
-// TODO: Consider making this trait object-safe for dynamic dispatch scenarios
-pub trait MatrixElement: Copy + Clone + std::fmt::Debug + Send + Sync + 'static {
-    /// Convert to ArrayValue
-    fn to_array_value(self) -> binsparse_rs::array::ArrayValue;
-    /// Convert from f64 (for compatibility with existing storage)
-    // TODO: Add proper error handling for lossy conversions (e.g., f64 to f32)
-    // TODO: Consider replacing with TryFrom trait for better error semantics
-    fn from_f64(value: f64) -> Self;
-    /// Get the corresponding DataType
-    fn data_type() -> DataType;
-    /// Size in bytes
-    fn size_bytes() -> usize;
-    /// Read from bytes
-    fn from_le_bytes(bytes: &[u8]) -> Result<Self>;
-    /// Write to bytes
-    fn to_le_bytes(self) -> Vec<u8>;
-
-    /// Safely calculate array length from byte size with overflow protection
-    fn validate_array_size(byte_len: usize) -> Result<usize> {
-        let element_size = Self::size_bytes();
-
-        // Check alignment first
-        if byte_len % element_size != 0 {
-            return Err(Error::InvalidState(
-                "Array size not aligned to element size",
-            ));
-        }
-
-        // Use checked division to avoid overflow
-        let count = byte_len / element_size;
-
-        // Check if the resulting array would be too large
-        if count > isize::MAX as usize {
-            return Err(Error::InvalidState("Array too large for safe indexing"));
-        }
-
-        // Additional check: ensure we can multiply back without overflow
-        count
-            .checked_mul(element_size)
-            .ok_or(Error::InvalidState("Array size calculation would overflow"))?;
-
-        Ok(count)
-    }
-
-    /// Safely calculate total byte size from element count
-    fn checked_byte_size(count: usize) -> Result<usize> {
-        let element_size = Self::size_bytes();
-        count
-            .checked_mul(element_size)
-            .ok_or(Error::InvalidState("Byte size calculation would overflow"))
-    }
-}
-
-// Generate MatrixElement implementations using macro
-impl_matrix_element!(f32, Float32, F32, 4, |value: f64| value as f32);
-impl_matrix_element!(f64, Float64, F64, 8, |value: f64| value);
-impl_matrix_element!(i32, Int32, I32, 4, |value: f64| value as i32);
-impl_matrix_element!(i64, Int64, I64, 8, |value: f64| value as i64);
-impl_matrix_element!(u32, UInt32, U32, 4, |value: f64| value as u32);
-impl_matrix_element!(u64, UInt64, U64, 8, |value: f64| value as u64);
+// Implement mmap-specific MatrixElement for standard types
+impl_mmap_matrix_element!(f32, Float32);
+impl_mmap_matrix_element!(f64, Float64);
+impl_mmap_matrix_element!(i32, Int32);
+impl_mmap_matrix_element!(i64, Int64);
+impl_mmap_matrix_element!(u32, UInt32);
+impl_mmap_matrix_element!(u64, UInt64);
 
 /// Memory-mapped matrix container that owns the memory mapping
 /// and provides access to arrays using raw pointers with proper lifetime management
-// TODO: Consider adding async loading support for very large files
 #[cfg(feature = "mmap")]
 pub struct MmapMatrix<T: MatrixElement> {
     pub(crate) _mmap: Mmap, // Keep the mmap alive
@@ -359,9 +303,9 @@ impl<T: MatrixElement> MmapMatrix<T> {
         self.chunk_bloom_filter.as_ref()
     }
     pub fn format(&self) -> MatrixFormat {
-        MatrixFormat::from(self.header.format_type)
+        MatrixFormat::from_u8(self.header.format_type).unwrap_or(MatrixFormat::Coo)
     }
     pub fn data_type(&self) -> DataType {
-        DataType::from(self.header.data_type)
+        DataType::from_u8(self.header.data_type).unwrap_or(DataType::F64)
     }
 }

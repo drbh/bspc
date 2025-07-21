@@ -9,10 +9,12 @@ license = "MIT"
 default = []
 alloc = []
 serde = ["dep:serde"]
+binsparse = ["dep:binsparse-rs"]
 
 [dependencies]
 serde = { workspace = true, optional = true, default-features = false }
 bytemuck = { workspace = true, default-features = false }
 hashbrown = { workspace = true, optional = true }
+binsparse-rs = { workspace = true, optional = true }
 
 [dev-dependencies]

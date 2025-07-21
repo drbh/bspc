@@ -11,3 +11,6 @@ bytemuck = { version = "1.0", default-features = false }
 criterion = { version = "0.5", features = ["html_reports"] }
 rand = "0.8"
 hashbrown = { version = "0.14", default-features = false }
+
+[profile.release]
+debug = true

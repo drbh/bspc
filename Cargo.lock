@@ -152,6 +152,7 @@ dependencies = [
 name = "bspc-core"
 version = "0.1.0"
 dependencies = [
+ "binsparse-rs",
  "bytemuck",
  "hashbrown 0.14.5",
  "serde",

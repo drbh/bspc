@@ -3,42 +3,11 @@
 //! This module provides a generic chunked access layer over memory-mapped sparse matrices,
 //! enabling efficient processing of large datasets within bounded memory constraints.
 
-use binsparse_rs::array::ArrayValue;
 use binsparse_rs::prelude::*;
+use bspc_core::SparseMatrix;
 
-/// Generic trait for matrices that can be processed in chunks
-pub trait ChunkableMatrix {
-    /// Get the number of rows in the matrix
-    fn nrows(&self) -> usize;
-
-    /// Get the number of columns in the matrix
-    fn ncols(&self) -> usize;
-
-    /// Get the number of non-zero elements
-    fn nnz(&self) -> usize;
-
-    /// Get an element at the specified position, if it exists
-    fn get_element(&self, row: usize, col: usize) -> Result<Option<ArrayValue>>;
-}
-
-// Implement ChunkableMatrix for any binsparse-rs Matrix
-impl<T: binsparse_rs::backend::StorageBackend> ChunkableMatrix for binsparse_rs::matrix::Matrix<T> {
-    fn nrows(&self) -> usize {
-        self.nrows
-    }
-
-    fn ncols(&self) -> usize {
-        self.ncols
-    }
-
-    fn nnz(&self) -> usize {
-        self.nnz
-    }
-
-    fn get_element(&self, row: usize, col: usize) -> Result<Option<ArrayValue>> {
-        self.get_element(row, col)
-    }
-}
+// Note: SparseMatrix implementation for binsparse-rs Matrix types
+// is provided in a separate adapter module to comply with orphan rules
 
 /// Configuration for chunked processing with chunk-level bloom filters
 #[derive(Debug, Clone)]
@@ -111,25 +80,25 @@ impl Default for ChunkConfig {
 }
 
 /// Chunked processor for stream processing
-pub struct ChunkedProcessor<M: ChunkableMatrix> {
+pub struct ChunkedProcessor<M: SparseMatrix> {
     matrix: M,
     config: ChunkConfig,
 }
 
-impl<M: ChunkableMatrix> ChunkedProcessor<M> {
+impl<M: SparseMatrix> ChunkedProcessor<M> {
     /// Create a new chunked processor
     pub fn new(matrix: M, config: ChunkConfig) -> Self {
         Self { matrix, config }
     }
 
     /// Get element from matrix
-    pub fn get_element(&self, row: usize, col: usize) -> Result<Option<ArrayValue>> {
+    pub fn get_element(&self, row: usize, col: usize) -> Option<M::Element> {
         self.matrix.get_element(row, col)
     }
 
     /// Get matrix dimensions
     pub fn dimensions(&self) -> (usize, usize) {
-        (self.matrix.nrows(), self.matrix.ncols())
+        self.matrix.dimensions()
     }
 
     /// Get the chunk configuration
@@ -139,11 +108,11 @@ impl<M: ChunkableMatrix> ChunkedProcessor<M> {
 }
 
 /// Chunked matrix wrapper
-pub struct ChunkedMatrix<M: ChunkableMatrix> {
+pub struct ChunkedMatrix<M: SparseMatrix> {
     inner: ChunkedProcessor<M>,
 }
 
-impl<M: ChunkableMatrix> ChunkedMatrix<M> {
+impl<M: SparseMatrix> ChunkedMatrix<M> {
     /// Create a new chunked matrix
     pub fn new(matrix: M, config: ChunkConfig) -> Self {
         Self {
@@ -158,7 +127,7 @@ impl<M: ChunkableMatrix> ChunkedMatrix<M> {
 
     /// Create from file (compatibility method)
     #[cfg(feature = "mmap")]
-    pub fn from_file<T: crate::mmap_backend::MatrixElement, P: AsRef<std::path::Path>>(
+    pub fn from_file<T: crate::mmap_backend::MatrixElement + bspc_core::MatrixElement, P: AsRef<std::path::Path>>(
         path: P,
         config: ChunkConfig,
     ) -> Result<ChunkedMatrix<crate::mmap_backend::MmapMatrix<T>>> {
@@ -167,7 +136,7 @@ impl<M: ChunkableMatrix> ChunkedMatrix<M> {
     }
 
     /// Get element from matrix
-    pub fn get_element(&self, row: usize, col: usize) -> Result<Option<ArrayValue>> {
+    pub fn get_element(&self, row: usize, col: usize) -> Option<M::Element> {
         self.inner.get_element(row, col)
     }
 

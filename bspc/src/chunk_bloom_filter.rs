@@ -68,13 +68,13 @@ impl ChunkBloomFilter {
         use std::sync::atomic::AtomicUsize;
 
         // Create atomic indices for each chunk to track processing ranges
-        let chunk_indices: Vec<AtomicUsize> = (0..self.chunk_filters.len())
+        let _chunk_indices: Vec<AtomicUsize> = (0..self.chunk_filters.len())
             .map(|_| AtomicUsize::new(0))
             .collect();
 
         // Process rows in parallel chunks, each thread works on a portion
         let num_threads = rayon::current_num_threads();
-        let chunk_size = sorted_rows.len().div_ceil(num_threads);
+        let _chunk_size = sorted_rows.len().div_ceil(num_threads);
 
         // Use rayon's parallel iteration over the filters themselves
         self.chunk_filters

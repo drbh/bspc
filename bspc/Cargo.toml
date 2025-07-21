@@ -14,7 +14,7 @@ serde = ["dep:serde", "dep:serde_json", "bspc-core/serde"]
 
 [dependencies]
 binsparse-rs = {workspace = true}
-bspc-core = {path = "../bspc-core", features = ["alloc"]}
+bspc-core = {path = "../bspc-core", features = ["alloc", "binsparse"]}
 bytemuck = {workspace = true}
 clap = {version = "4.0", features = ["derive"], optional = true}
 hashbrown = {workspace = true}

@@ -1,46 +1,35 @@
 #![no_std]
 
-//! BSPC Core - Binary Sparse Matrix Format Definitions
+//! BSPC Core - Binary Sparse Matrix Format Specification
 //!
-//! This crate provides core format definitions and traits for binary sparse
-//! matrix storage
+//! This crate provides the complete specification for the BSPC (Binary Sparse Matrix) format,
+//! including data layout definitions, abstract interfaces, and validation utilities.
+//! 
+//! ## Architecture
+//! 
+//! This crate serves as a pure specification layer with no I/O dependencies:
+//! - **Format definitions**: Binary layout and wire format specifications
+//! - **Abstract interfaces**: Trait definitions for implementations  
+//! - **Validation utilities**: Pure mathematical validation functions
+//! - **Error taxonomy**: Comprehensive error classification system
+//!
+//! ## Design Principles
+//!
+//! - **No I/O operations**: Only pure data structures and mathematical functions
+//! - **No concrete implementations**: Only abstract interfaces and format definitions
+//! - **No platform dependencies**: Works in no-std environments
+//! - **Zero policy**: No algorithmic or business logic decisions
 
-#[cfg(feature = "alloc")]
-extern crate alloc;
-
-#[cfg(feature = "alloc")]
-use alloc::vec::Vec;
-
+// Public modules
 pub mod bloom_filter;
 pub mod error;
 pub mod format;
 pub mod traits;
+pub mod validation;
 
+// Re-export core types for convenience
 pub use bloom_filter::*;
 pub use error::*;
 pub use format::*;
 pub use traits::*;
-
-/// Core sparse matrix trait for format-agnostic access
-pub trait SparseMatrix {
-    type Element;
-
-    /// Get an element at the specified position
-    fn get_element(&self, row: usize, col: usize) -> Option<Self::Element>;
-
-    /// Get matrix dimensions as (rows, cols)
-    fn dimensions(&self) -> (usize, usize);
-
-    /// Get number of non-zero elements
-    fn nnz(&self) -> usize;
-}
-
-/// Extension trait for row/column operations (requires alloc)
-#[cfg(feature = "alloc")]
-pub trait MatrixOperations: SparseMatrix {
-    /// Get all elements in a row
-    fn get_row(&self, row_index: usize) -> Vec<Self::Element>;
-
-    /// Get all elements in a column  
-    fn get_col(&self, col_index: usize) -> Vec<Self::Element>;
-}
+pub use validation::*;
