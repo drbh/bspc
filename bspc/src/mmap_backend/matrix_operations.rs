@@ -418,10 +418,8 @@ impl<T: MatrixElement> MmapMatrix<T> {
         }
 
         // Bloom filter early exit
-        if let Some(ref bloom_filter) = self.chunk_bloom_filter {
-            if !bloom_filter.may_contain_row(row) {
-                return Ok(None);
-            }
+        if !self.chunk_bloom_filter.may_contain_row(row) {
+            return Ok(None);
         }
 
         // Find and return element
@@ -499,70 +497,52 @@ impl<T: MatrixElement> MmapMatrix<T> {
         let row_indices = self.row_indices();
         let col_indices = self.col_indices();
 
-        // Use chunk bloom filter if available for efficient filtering
-        if let Some(ref bloom_filter) = self.chunk_bloom_filter {
-            let relevant_chunks = bloom_filter.may_contain_range(start_row, end_row);
+        // Use chunk bloom filter for efficient filtering
+        let relevant_chunks = self.chunk_bloom_filter.may_contain_range(start_row, end_row);
 
-            // Early return if no chunks contain data in the range
-            if relevant_chunks.is_empty() {
-                return Ok(Box::new((0..0).filter_map(move |_| None)));
-            }
-
-            // Convert chunk indices to row ranges for efficient filtering
-            let chunk_size = bloom_filter.chunk_size();
-            let mut relevant_row_ranges = Vec::new();
-
-            for chunk_idx in relevant_chunks {
-                let chunk_start = chunk_idx * chunk_size;
-                let chunk_end = ((chunk_idx + 1) * chunk_size).min(self.nrows());
-
-                // Only include the intersection with the requested range
-                let range_start = start_row.max(chunk_start);
-                let range_end = end_row.min(chunk_end);
-
-                if range_start < range_end {
-                    relevant_row_ranges.push(range_start..range_end);
-                }
-            }
-
-            // Filter elements that fall within relevant chunks
-            Ok(Box::new((0..values.len()).filter_map(move |i| {
-                let file_row = row_indices[i] as usize;
-                let file_col = col_indices[i] as usize;
-
-                // Check if row is in any relevant chunk range
-                let in_relevant_chunk = relevant_row_ranges
-                    .iter()
-                    .any(|range| range.contains(&file_row));
-
-                if in_relevant_chunk
-                    && file_row >= start_row
-                    && file_row < end_row
-                    && file_row < self.nrows()
-                    && file_col < self.ncols()
-                {
-                    Some((file_row, file_col, &values[i]))
-                } else {
-                    None
-                }
-            })))
-        } else {
-            // Fallback: Linear scan when no bloom filter available
-            Ok(Box::new((0..values.len()).filter_map(move |i| {
-                let file_row = row_indices[i] as usize;
-                let file_col = col_indices[i] as usize;
-
-                if file_row >= start_row
-                    && file_row < end_row
-                    && file_row < self.nrows()
-                    && file_col < self.ncols()
-                {
-                    Some((file_row, file_col, &values[i]))
-                } else {
-                    None
-                }
-            })))
+        // Early return if no chunks contain data in the range
+        if relevant_chunks.is_empty() {
+            return Ok(Box::new((0..0).filter_map(move |_| None)));
         }
+
+        // Convert chunk indices to row ranges for efficient filtering
+        let chunk_size = self.chunk_bloom_filter.chunk_size();
+        let mut relevant_row_ranges = Vec::new();
+
+        for chunk_idx in relevant_chunks {
+            let chunk_start = chunk_idx * chunk_size;
+            let chunk_end = ((chunk_idx + 1) * chunk_size).min(self.nrows());
+
+            // Only include the intersection with the requested range
+            let range_start = start_row.max(chunk_start);
+            let range_end = end_row.min(chunk_end);
+
+            if range_start < range_end {
+                relevant_row_ranges.push(range_start..range_end);
+            }
+        }
+
+        // Filter elements that fall within relevant chunks
+        Ok(Box::new((0..values.len()).filter_map(move |i| {
+            let file_row = row_indices[i] as usize;
+            let file_col = col_indices[i] as usize;
+
+            // Check if row is in any relevant chunk range
+            let in_relevant_chunk = relevant_row_ranges
+                .iter()
+                .any(|range| range.contains(&file_row));
+
+            if in_relevant_chunk
+                && file_row >= start_row
+                && file_row < end_row
+                && file_row < self.nrows()
+                && file_col < self.ncols()
+            {
+                Some((file_row, file_col, &values[i]))
+            } else {
+                None
+            }
+        })))
     }
 
     /// Get a range of rows efficiently
@@ -580,14 +560,10 @@ impl<T: MatrixElement> MmapMatrix<T> {
         let col_indices = self.col_indices();
         let mut results = Vec::new();
 
-        // Use chunk bloom filter if available
-        let should_scan = if let Some(ref bloom_filter) = self.chunk_bloom_filter {
-            !bloom_filter
-                .may_contain_range(start_row, end_row)
-                .is_empty()
-        } else {
-            true
-        };
+        // Use chunk bloom filter to check if we should scan
+        let should_scan = !self.chunk_bloom_filter
+            .may_contain_range(start_row, end_row)
+            .is_empty();
 
         if should_scan {
             for i in 0..values.len() {
@@ -626,11 +602,9 @@ impl<T: MatrixElement> MmapMatrix<T> {
             return Err(Error::InvalidState("Invalid column range"));
         }
 
-        // Use chunk bloom filter if available
-        if let Some(ref bloom_filter) = self.chunk_bloom_filter {
-            if !bloom_filter.may_contain_row(row) {
-                return Ok(Vec::new());
-            }
+        // Use chunk bloom filter for early exit
+        if !self.chunk_bloom_filter.may_contain_row(row) {
+            return Ok(Vec::new());
         }
 
         let elements = self.get_row_range(row, row + 1)?;

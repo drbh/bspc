@@ -148,7 +148,7 @@ pub struct MmapMatrix<T: MatrixElement> {
     pub(crate) row_indices_len: usize,
     pub(crate) col_indices: *const u32,
     pub(crate) col_indices_len: usize,
-    pub(crate) chunk_bloom_filter: Option<crate::chunk_bloom_filter::ChunkBloomFilter>,
+    pub(crate) chunk_bloom_filter: crate::chunk_bloom_filter::ChunkBloomFilter,
     pub(crate) _phantom: std::marker::PhantomData<T>,
 }
 
@@ -215,8 +215,8 @@ impl<T: MatrixElement> MmapMatrix<T> {
             return Err(Error::InvalidState("Arrays extend beyond file"));
         }
 
-        // Load optional bloom filter (before moving mmap)
-        let chunk_bloom_filter = header
+        // Load bloom filter or create if not present
+        let loaded_bloom_filter = header
             .chunk_bloom_filter_region()
             .and_then(|(offset, size)| {
                 let start = offset as usize;
@@ -225,7 +225,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
             })
             .and_then(|data| crate::chunk_bloom_filter::ChunkBloomFilter::deserialize(data).ok());
 
-        // Create the struct with mmap moved
+        // Create the struct with mmap moved (bloom filter will be set later)
         let mut result = Self {
             _mmap: mmap,
             header,
@@ -235,7 +235,7 @@ impl<T: MatrixElement> MmapMatrix<T> {
             row_indices_len: 0,
             col_indices: std::ptr::null(),
             col_indices_len: 0,
-            chunk_bloom_filter,
+            chunk_bloom_filter: crate::chunk_bloom_filter::ChunkBloomFilter::new(header.nrows as usize, 100_000), // temporary, will be set properly
             _phantom: std::marker::PhantomData,
         };
 
@@ -280,6 +280,27 @@ impl<T: MatrixElement> MmapMatrix<T> {
         result.col_indices = col_indices.as_ptr();
         result.col_indices_len = col_indices.len();
 
+        // Set the bloom filter - use loaded one or create from data
+        result.chunk_bloom_filter = if let Some(bloom_filter) = loaded_bloom_filter {
+            bloom_filter
+        } else {
+            // Create bloom filter from the matrix data
+            let mut bloom_filter = crate::chunk_bloom_filter::ChunkBloomFilter::new(header.nrows as usize, 100_000);
+            
+            // Collect unique rows efficiently
+            let mut unique_rows = Vec::new();
+            let mut prev_row = None;
+            for &row in row_indices {
+                if prev_row != Some(row) {
+                    unique_rows.push(row as usize);
+                    prev_row = Some(row);
+                }
+            }
+            
+            bloom_filter.bulk_insert_sorted(&unique_rows);
+            bloom_filter
+        };
+
         Ok(result)
     }
 
@@ -299,8 +320,8 @@ impl<T: MatrixElement> MmapMatrix<T> {
     safe_array_accessor!(col_indices, col_indices, col_indices_len, u32);
 
     // Simple accessors
-    pub fn chunk_bloom_filter(&self) -> Option<&crate::chunk_bloom_filter::ChunkBloomFilter> {
-        self.chunk_bloom_filter.as_ref()
+    pub fn chunk_bloom_filter(&self) -> &crate::chunk_bloom_filter::ChunkBloomFilter {
+        &self.chunk_bloom_filter
     }
     pub fn format(&self) -> MatrixFormat {
         MatrixFormat::from_u8(self.header.format_type).unwrap_or(MatrixFormat::Coo)

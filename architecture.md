@@ -61,10 +61,10 @@ struct BspcHeader {
 - Application-specific information
 - Only present if metadata_size > 0
 
-### Bloom Filter Section (Optional)
+### Bloom Filter Section
 - Pre-computed bloom filter for row existence checks
-- Stored in file for faster startup
-- Only present if bloom_filter_size > 0
+- If bloom_filter_size == 0, computed at runtime during load
+- Always used for consistent query performance
 
 ## System Architecture
 
@@ -83,16 +83,17 @@ struct BspcHeader {
 
 ### bspc-core
 Foundation library providing:
-- **Backend abstraction**: File system, HTTP, and memory-mapped data sources
-- **MmapMatrix**: Zero-copy memory-mapped matrix access
-- **ChunkedMatrix**: Bloom filter wrapper for optimized row queries  
-- **Runtime Bloom Filter**: Probabilistic row existence checking
+- **SparseMatrix trait**: Backend abstraction for different data sources
+- **BloomFilter64**: Probabilistic data structure primitives
+- **Format definitions**: Header structures and validation
+- **Core traits**: Building blocks for matrix implementations
 
 ### bspc
-File I/O layer built on bspc-core:
-- **BspcFile**: Read/write .bspc files to disk
-- **Serialization**: Convert matrices to/from BSPC format
-- **Type safety**: Compile-time guarantees for data types
+Implementation layer built on bspc-core:
+- **ChunkedMatrix<M>**: Generic wrapper with bloom filter optimization
+- **ChunkBloomFilter**: Chunk-based bloom filters (wraps BloomFilter64)
+- **MmapMatrix<T>**: Memory-mapped matrix implementations
+- **BspcFile**: File I/O operations and format serialization
 
 ## Dependency Flow
 
@@ -100,13 +101,20 @@ File I/O layer built on bspc-core:
 User Code
     │
     ▼
-bspc::BspcFile ──► bspc_core::MmapMatrix ──► bspc_core::Backend
-    │                      │                      │
-    │                      ▼                      ▼
-    └──────────► bspc_core::ChunkedMatrix    File/HTTP/Memory
-                      │
-                      ▼
-                bspc_core::BloomFilter
+bspc::BspcFile
+    │
+    ▼
+bspc::ChunkedMatrix<M>
+    │
+    ├─► M: SparseMatrix (DynamicMatrix, MmapMatrix<T>)
+    │       │
+    │       ▼
+    │   Backend abstraction ──► File/HTTP/Memory
+    │
+    └─► bspc::ChunkBloomFilter
+            │
+            ▼
+        bspc_core::BloomFilter64
 ```
 
 ## Query Flow
@@ -126,7 +134,7 @@ Binary/linear search through indices ──► Return value or None
 ## Design Decisions
 
 **Memory mapping**: Direct file access without loading entire matrix into RAM  
-**Bloom filters**: Probabilistic row existence checks (can be stored or computed at runtime)  
+**Bloom filters**: Always-on probabilistic filters for consistent performance (computed at runtime if not stored)  
 **COO format**: Simple, general sparse matrix representation  
 **Fixed header**: 160-byte header with u64 offsets for large file support  
 **Little-endian**: Standard byte ordering for cross-platform compatibility  
