@@ -6,9 +6,9 @@
 <!-- [![Crates.io](https://img.shields.io/crates/v/bspc.svg)](https://crates.io/crates/bspc)
 [![Documentation](https://docs.rs/bspc/badge.svg)](https://docs.rs/bspc/) -->
 
-**A memory-mapped sparse matrix format with runtime bloom filter optimization.**
+**A memory-mapped sparse matrix format with bloom filter optimization.**
 
-BSPC implements the Binary Sparse Format standard with memory-mapped access and optional bloom filters for faster row queries on large matrices.
+BSPC implements the Binary Sparse Format standard with memory-mapped access and bloom filters for faster row queries on large matrices.
 
 ### Usage
 
